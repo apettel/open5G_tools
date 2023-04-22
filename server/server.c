@@ -11,9 +11,10 @@
 #define MAX_BUF_SIZE 1024
 
 int main(int argc, char *argv[]) {
-    int sockfd, newsockfd, portno, clilen;
+    int sockfd, newsockfd, portno;
+    unsigned int clilen;
     struct sockaddr_in serv_addr, cli_addr;
-    char buffer[MAX_BUF_SIZE];
+    //char buffer[MAX_BUF_SIZE];
     int n;
 
     if (argc < 2) {
