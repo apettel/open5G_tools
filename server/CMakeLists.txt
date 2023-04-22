@@ -8,4 +8,4 @@ set_target_properties(server PROPERTIES OUTPUT_NAME "open5G_server")
 
 install(TARGETS server
         CONFIGURATIONS Release
-        RUNTIME DESTINATION /usr/bin)
+        RUNTIME DESTINATION /usr/sbin)
