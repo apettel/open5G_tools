@@ -7,8 +7,16 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <signal.h>
 
 #define MAX_BUF_SIZE 1024
+
+int running = 1;
+
+void handle_sigint(int sig)
+{
+    running = 0;
+}
 
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
@@ -29,7 +37,7 @@ int main(int argc, char *argv[]) {
     }
 
     bzero((char *) &serv_addr, sizeof(serv_addr));
-    portno = atoi(argv[1]);
+    portno = 69;
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(portno);
@@ -62,25 +70,31 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    // Receive variable-length data
-    int recv_data_len;
+    // Set up SIGINT signal handler
+    signal(SIGINT, handle_sigint);
+    
+    while (running) {
 
-    if ((n = recv(newsockfd, &recv_data_len, sizeof(recv_data_len), 0)) == -1) {
-        perror("recv");
-        exit(EXIT_FAILURE);
+        // Receive variable-length data
+        int recv_data_len;
+
+        if ((n = recv(newsockfd, &recv_data_len, sizeof(recv_data_len), 0)) == -1) {
+            perror("recv");
+            exit(EXIT_FAILURE);
+        }
+
+        char* recv_data = (char*) malloc(recv_data_len);
+
+        if ((n = recv(newsockfd, recv_data, recv_data_len, 0)) == -1) {
+            perror("recv");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Received data: %s\n", recv_data);
+        free(recv_data);
     }
-
-    char* recv_data = (char*) malloc(recv_data_len);
-
-    if ((n = recv(newsockfd, recv_data, recv_data_len, 0)) == -1) {
-        perror("recv");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Received data: %s\n", recv_data);
 
     // Cleanup
-    free(recv_data);
     close(newsockfd);
     close(sockfd);
 
