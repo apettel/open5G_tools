@@ -3,4 +3,4 @@ project(open5G_server C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(server server.c)
+add_executable(open5G_server server.c)
