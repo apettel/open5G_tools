@@ -11,6 +11,10 @@ class MyWindow(QtWidgets.QWidget):
         self.mem_read_items = list()
         self.initUI()
 
+    def closeEvent(self, event):
+        self.disconnect_socket()
+        event.accept()
+
     def initUI(self):
         # create a grid layout with 10 rows and 2 columns
         layout = QtWidgets.QGridLayout(self)
@@ -93,7 +97,7 @@ class MyWindow(QtWidgets.QWidget):
     def add_read_location(self, label, addr, group_box_layout):
         label = QtWidgets.QLabel(label)
         edit_box = QtWidgets.QLineEdit()
-        edit_box.setEnabled(False)
+        edit_box.setReadOnly(True)
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(edit_box, idx, 1)
@@ -126,6 +130,7 @@ class MyWindow(QtWidgets.QWidget):
     def disconnect_socket(self):
         try:
             self.timer.stop()
+            self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
             print('Connection closed')
             self.button_connect.setEnabled(True)
@@ -139,28 +144,30 @@ class MyWindow(QtWidgets.QWidget):
         num_read_bytes = 5 + 4*num_items
         import numpy as np
         req_msg = np.empty(num_read_bytes, np.int8)
-        req_msg[0] = ((num_read_bytes - 4) >> 24) & 0xFF
-        req_msg[1] = ((num_read_bytes - 4) >> 16) & 0xFF
-        req_msg[2] = ((num_read_bytes - 4) >> 8) & 0xFF
-        req_msg[3] = (num_read_bytes - 4) & 0xFF
+        req_msg[0] = ((num_read_bytes - 4) >> 0) & 0xFF
+        req_msg[1] = ((num_read_bytes - 4) >> 8) & 0xFF
+        req_msg[2] = ((num_read_bytes - 4) >> 16) & 0xFF
+        req_msg[3] = ((num_read_bytes - 4) >> 24) & 0xFF
         req_msg[4] = 0 # mode 0 is read
         for i in range(num_items):
             addr = self.mem_read_items[i][0]
-            req_msg[5 + i*4] = (addr >> 24) & 0xFF
-            req_msg[6 + i*4] = (addr >> 16) & 0xFF
-            req_msg[7 + i*4] = (addr >> 8) & 0xFF
-            req_msg[8 + i*4] = (addr >> 0) & 0xFF
+            req_msg[5 + i*4] = (addr >> 0) & 0xFF
+            req_msg[6 + i*4] = (addr >> 8) & 0xFF
+            req_msg[7 + i*4] = (addr >> 16) & 0xFF
+            req_msg[8 + i*4] = (addr >> 24) & 0xFF
         # send and wait for answer
-        self.sock.send(req_msg)
+        print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+        self.sock.send(req_msg.tobytes())
         recv_msg = self.sock.recv(num_read_bytes)
         # fill GUI
         for i in range(num_items):
-            val = recv_msg[5 + i*4] << 24
-            val = recv_msg[6 + i*4] << 16
-            val = recv_msg[7 + i*4] << 8
-            val = recv_msg[8 + i*4] << 0
-            if (self.mem_read_items[i][1] & 0xFF == 0x0c):
-                self.mem_read_items[i][1].setText(f'{val:c}{val>>8:c}{val>>16:c}{val>>24:c}')
+            val = recv_msg[5 + i*4] << 0
+            val += recv_msg[6 + i*4] << 8
+            val += recv_msg[7 + i*4] << 16
+            val += recv_msg[8 + i*4] << 24
+            if (self.mem_read_items[i][0] & 0xFF == 0x0c):
+                val_str = recv_msg[5 + i*4 : 9 + i*4].decode("ascii")[::-1]
+                self.mem_read_items[i][1].setText(val_str)
             else:
                 self.mem_read_items[i][1].setText(f'{val:08x}')
 
