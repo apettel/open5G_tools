@@ -64,7 +64,16 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("mode",          0x7c444014, group_box_layout)
         self.add_read_location("CFO mode",      0x7c44401c, group_box_layout)
         self.add_read_location("CFO (Hz)",      0x7c444018, group_box_layout)
-        # self.add_read_location("N_id_2",        0x7c444010, group_box_layout)
+        
+        
+        label = QtWidgets.QLabel("CFO mode")
+        combo_box = QtWidgets.QComboBox()
+        combo_box.addItem("auto (0)")
+        combo_box.addItem("manual (1)")
+        combo_box.currentIndexChanged.connect(self.set_CFO_mode)
+        idx = len(self.mem_read_items)
+        group_box_layout.addWidget(label, idx, 0)
+        group_box_layout.addWidget(combo_box, idx, 1)
 
         group_box.setLayout(group_box_layout)
 
@@ -80,6 +89,8 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("id string", 0x7c44800c, group_box_layout)
         self.add_read_location("fs state",  0x7c448014, group_box_layout)
         self.add_read_location("rx signal", 0x7c448018, group_box_layout)
+        self.add_read_location("N_id_2",    0x7c448020, group_box_layout)
+        self.add_read_location("N_id",      0x7c448024, group_box_layout)
 
         group_box.setLayout(group_box_layout)
 
@@ -93,6 +104,27 @@ class MyWindow(QtWidgets.QWidget):
             self.timer.setInterval(int(self.edit_box_upd.text()))
         except:
             pass
+    
+    def set_CFO_mode(self, idx):
+        if self.button_connect.isEnabled() == False:
+            num_write_bytes = 13
+            import numpy as np
+            req_msg = np.empty(num_write_bytes, np.int8)
+            req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
+            req_msg[1] = ((num_write_bytes - 4) >> 8) & 0xFF
+            req_msg[2] = ((num_write_bytes - 4) >> 16) & 0xFF
+            req_msg[3] = ((num_write_bytes - 4) >> 24) & 0xFF
+            req_msg[4] = 1 # mode 0 is read
+            req_msg[5] = 0x1c
+            req_msg[6] = 0x40
+            req_msg[7] = 0x44
+            req_msg[8] = 0x7c
+            req_msg[9] = idx
+            req_msg[10] = 0
+            req_msg[11] = 0
+            req_msg[12] = 0
+            print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+            self.sock.send(req_msg.tobytes())            
 
     def add_read_location(self, label, addr, group_box_layout):
         label = QtWidgets.QLabel(label)
