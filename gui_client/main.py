@@ -1,3 +1,4 @@
+import numpy as np
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QMessageBox
@@ -37,7 +38,7 @@ class MyWindow(QtWidgets.QWidget):
         label = QtWidgets.QLabel(f"update interval (ms)")
         group_box_layout.addWidget(label, 0, 2)
         self.edit_box_upd = QtWidgets.QLineEdit()
-        self.edit_box_upd.setText('50')
+        self.edit_box_upd.setText('100')
         self.edit_box_upd.textChanged.connect(self.upd_changed)
         group_box_layout.addWidget(self.edit_box_upd, 0, 3)
 
@@ -89,8 +90,8 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("id string", 0x7c44800c, group_box_layout)
         self.add_read_location("fs state",  0x7c448014, group_box_layout)
         self.add_read_location("rx signal", 0x7c448018, group_box_layout)
-        self.add_read_location("N_id_2",    0x7c448020, group_box_layout)
-        self.add_read_location("N_id",      0x7c448024, group_box_layout)
+        self.add_read_location("N_id_2",    0x7c44801c, group_box_layout)
+        self.add_read_location("N_id",      0x7c448020, group_box_layout)
 
         group_box.setLayout(group_box_layout)
 
@@ -148,6 +149,15 @@ class MyWindow(QtWidgets.QWidget):
             self.sock.connect((ip, port))
             print('Connection established')
             self.setWindowTitle("connected")
+
+            # self.sock.settimeout(0.01)
+            # for i in range(100):
+            #     try:
+            #         self.sock.recv(1)
+            #     except:
+            #         pass
+            self.sock.settimeout(1)
+
             self.button_connect.setEnabled(False)
             self.button_disconnect.setEnabled(True)
             # Start a timer to receive data from the socket every 100ms
@@ -174,7 +184,6 @@ class MyWindow(QtWidgets.QWidget):
         # assembly request message
         num_items = len(self.mem_read_items)
         num_read_bytes = 5 + 4*num_items
-        import numpy as np
         req_msg = np.empty(num_read_bytes, np.int8)
         req_msg[0] = ((num_read_bytes - 4) >> 0) & 0xFF
         req_msg[1] = ((num_read_bytes - 4) >> 8) & 0xFF
@@ -188,12 +197,15 @@ class MyWindow(QtWidgets.QWidget):
             req_msg[7 + i*4] = (addr >> 16) & 0xFF
             req_msg[8 + i*4] = (addr >> 24) & 0xFF
         # send and wait for answer
-        print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+        # print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
         self.sock.send(req_msg.tobytes())
         recv_msg = self.sock.recv(num_read_bytes)
+        if len(recv_msg) < num_read_bytes: # sometimes not all data comes with first read
+            recv_msg += self.sock.recv(num_read_bytes - len(recv_msg))
+        # print(f"receive {len(recv_msg)} bytes -> " + ":".join("{:02x}".format(c) for c in recv_msg))
         # fill GUI
         for i in range(num_items):
-            val = recv_msg[5 + i*4] << 0
+            val = int(recv_msg[5 + i*4] << 0)
             val += recv_msg[6 + i*4] << 8
             val += recv_msg[7 + i*4] << 16
             val += recv_msg[8 + i*4] << 24
