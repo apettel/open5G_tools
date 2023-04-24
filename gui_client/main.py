@@ -2,6 +2,7 @@ import numpy as np
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtCore import Qt
 import socket
 
 class MyWindow(QtWidgets.QWidget):
@@ -62,6 +63,8 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("peak count 0",  0x7c444020, group_box_layout)
         self.add_read_location("peak count 1",  0x7c444024, group_box_layout)
         self.add_read_location("peak count 2",  0x7c444028, group_box_layout)
+        self.add_read_location("noise limit",   0x7c44402c, group_box_layout)
+        self.add_read_location("detection shift", 0x7c444030, group_box_layout)
         self.add_read_location("mode",          0x7c444014, group_box_layout)
         self.add_read_location("CFO mode",      0x7c44401c, group_box_layout)
         self.add_read_location("CFO (Hz)",      0x7c444018, group_box_layout)
@@ -75,6 +78,27 @@ class MyWindow(QtWidgets.QWidget):
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(combo_box, idx, 1)
+
+        label = QtWidgets.QLabel("detection shift")
+        combo_box = QtWidgets.QComboBox()
+        combo_box.addItem("1")
+        combo_box.addItem("2")
+        combo_box.addItem("3")
+        combo_box.addItem("4")
+        combo_box.addItem("5")
+        combo_box.addItem("6")
+        combo_box.currentIndexChanged.connect(self.set_detection_shift)
+        idx = len(self.mem_read_items) + 1
+        group_box_layout.addWidget(label, idx, 0)
+        group_box_layout.addWidget(combo_box, idx, 1)
+
+        label = QtWidgets.QLabel("noise limit")
+        slider = QtWidgets.QSlider(Qt.Horizontal)
+        slider.setRange(0, 100)
+        slider.valueChanged.connect(self.set_noise_limit)
+        idx = len(self.mem_read_items) + 2
+        group_box_layout.addWidget(label, idx, 0)
+        group_box_layout.addWidget(slider, idx, 1)
 
         group_box.setLayout(group_box_layout)
 
@@ -105,17 +129,36 @@ class MyWindow(QtWidgets.QWidget):
             self.timer.setInterval(int(self.edit_box_upd.text()))
         except:
             pass
+
+    def set_noise_limit(self, value):
+        noise_limit = 2**32 * value
+        num_write_bytes = 13
+        req_msg = np.empty(num_write_bytes, np.int8)
+        req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
+        req_msg[1] = ((num_write_bytes - 4) >> 8) & 0xFF
+        req_msg[2] = ((num_write_bytes - 4) >> 16) & 0xFF
+        req_msg[3] = ((num_write_bytes - 4) >> 24) & 0xFF
+        req_msg[4] = 1 # mode 1 is write
+        req_msg[5] = 0x2c
+        req_msg[6] = 0x40
+        req_msg[7] = 0x44
+        req_msg[8] = 0x7c
+        req_msg[9] = noise_limit & 0xFF
+        req_msg[10] = (noise_limit >> 8) & 0xFF
+        req_msg[11] = (noise_limit >> 16) & 0xFF
+        req_msg[12] = (noise_limit >> 24) & 0xFF
+        print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+        self.sock.send(req_msg.tobytes())        
     
     def set_CFO_mode(self, idx):
         if self.button_connect.isEnabled() == False:
             num_write_bytes = 13
-            import numpy as np
             req_msg = np.empty(num_write_bytes, np.int8)
             req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
             req_msg[1] = ((num_write_bytes - 4) >> 8) & 0xFF
             req_msg[2] = ((num_write_bytes - 4) >> 16) & 0xFF
             req_msg[3] = ((num_write_bytes - 4) >> 24) & 0xFF
-            req_msg[4] = 1 # mode 0 is read
+            req_msg[4] = 1 # mode 1 is write
             req_msg[5] = 0x1c
             req_msg[6] = 0x40
             req_msg[7] = 0x44
@@ -125,7 +168,27 @@ class MyWindow(QtWidgets.QWidget):
             req_msg[11] = 0
             req_msg[12] = 0
             print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
-            self.sock.send(req_msg.tobytes())            
+            self.sock.send(req_msg.tobytes())
+
+    def set_detection_shift(self, idx):
+        if self.button_connect.isEnabled() == False:
+            num_write_bytes = 13
+            req_msg = np.empty(num_write_bytes, np.int8)
+            req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
+            req_msg[1] = ((num_write_bytes - 4) >> 8) & 0xFF
+            req_msg[2] = ((num_write_bytes - 4) >> 16) & 0xFF
+            req_msg[3] = ((num_write_bytes - 4) >> 24) & 0xFF
+            req_msg[4] = 1 # mode 1 is write
+            req_msg[5] = 0x30
+            req_msg[6] = 0x40
+            req_msg[7] = 0x44
+            req_msg[8] = 0x7c
+            req_msg[9] = idx + 1
+            req_msg[10] = 0
+            req_msg[11] = 0
+            req_msg[12] = 0
+            print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+            self.sock.send(req_msg.tobytes())
 
     def add_read_location(self, label, addr, group_box_layout):
         label = QtWidgets.QLabel(label)
