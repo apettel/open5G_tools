@@ -7,6 +7,7 @@ import socket
 
 class MyWindow(QtWidgets.QWidget):
     def __init__(self):
+        self.first_read = True
         self.timer = QTimer()
         self.timer.setInterval(100)    
         super().__init__()
@@ -71,34 +72,34 @@ class MyWindow(QtWidgets.QWidget):
         
         
         label = QtWidgets.QLabel("CFO mode")
-        combo_box = QtWidgets.QComboBox()
-        combo_box.addItem("auto (0)")
-        combo_box.addItem("manual (1)")
-        combo_box.currentIndexChanged.connect(self.set_CFO_mode)
+        self.combo_box_cfo = QtWidgets.QComboBox()
+        self.combo_box_cfo.addItem("auto (0)")
+        self.combo_box_cfo.addItem("manual (1)")
+        self.combo_box_cfo.currentIndexChanged.connect(self.set_CFO_mode)
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
-        group_box_layout.addWidget(combo_box, idx, 1)
+        group_box_layout.addWidget(self.combo_box_cfo, idx, 1)
 
         label = QtWidgets.QLabel("detection shift")
-        combo_box = QtWidgets.QComboBox()
-        combo_box.addItem("1")
-        combo_box.addItem("2")
-        combo_box.addItem("3")
-        combo_box.addItem("4")
-        combo_box.addItem("5")
-        combo_box.addItem("6")
-        combo_box.currentIndexChanged.connect(self.set_detection_shift)
+        self.combo_box_ds = QtWidgets.QComboBox()
+        self.combo_box_ds.addItem("1")
+        self.combo_box_ds.addItem("2")
+        self.combo_box_ds.addItem("3")
+        self.combo_box_ds.addItem("4")
+        self.combo_box_ds.addItem("5")
+        self.combo_box_ds.addItem("6")
+        self.combo_box_ds.currentIndexChanged.connect(self.set_detection_shift)
         idx = len(self.mem_read_items) + 1
         group_box_layout.addWidget(label, idx, 0)
-        group_box_layout.addWidget(combo_box, idx, 1)
+        group_box_layout.addWidget(self.combo_box_ds, idx, 1)
 
         label = QtWidgets.QLabel("noise limit")
-        slider = QtWidgets.QSlider(Qt.Horizontal)
-        slider.setRange(0, 100)
-        slider.valueChanged.connect(self.set_noise_limit)
+        self.slider = QtWidgets.QSlider(Qt.Horizontal)
+        self.slider.setRange(0, 100)
+        self.slider.valueChanged.connect(self.set_noise_limit)
         idx = len(self.mem_read_items) + 2
         group_box_layout.addWidget(label, idx, 0)
-        group_box_layout.addWidget(slider, idx, 1)
+        group_box_layout.addWidget(self.slider, idx, 1)
 
         group_box.setLayout(group_box_layout)
 
@@ -131,7 +132,7 @@ class MyWindow(QtWidgets.QWidget):
             pass
 
     def set_noise_limit(self, value):
-        noise_limit = 2**32 * value
+        noise_limit = int(2**(value/100*32))
         num_write_bytes = 13
         req_msg = np.empty(num_write_bytes, np.int8)
         req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
@@ -225,12 +226,12 @@ class MyWindow(QtWidgets.QWidget):
             self.button_disconnect.setEnabled(True)
             # Start a timer to receive data from the socket every 100ms
             self.timer.timeout.connect(self.update_data)
+            self.first_read = True
             self.timer.start()
         except socket.timeout:
             QMessageBox.warning(self, '','Connection timed out')
         except ConnectionRefusedError:
             QMessageBox.warning(self, '','Connection refused')
-
 
     def disconnect_socket(self):
         try:
@@ -277,6 +278,31 @@ class MyWindow(QtWidgets.QWidget):
                 self.mem_read_items[i][1].setText(val_str)
             else:
                 self.mem_read_items[i][1].setText(f'{val:08x}')
+        if self.first_read:
+            # set noise_filter slider
+            for item in self.mem_read_items:
+                if item[0] == 0x7c44402c:
+                    value = int(item[1].text(), base = 16)
+                    break
+            if value == 0:
+                self.slider.setValue(0)
+            else:
+                self.slider.setValue(int(np.log2(value)*100/32))
+            # set CFO_mode combobox
+            for item in self.mem_read_items:
+                if item[0] == 0x7c44401c:
+                    idx = int(item[1].text(), base = 16)
+                    break
+            self.combo_box_cfo.setCurrentIndex(idx)
+
+            # set detection shift combobox
+            for item in self.mem_read_items:
+                if item[0] == 0x7c444030:
+                    idx = int(item[1].text(), base = 16) - 1
+                    break
+            self.combo_box_ds.setCurrentIndex(idx)
+            
+        self.first_read = False
 
 if __name__ == "__main__":
     import sys
