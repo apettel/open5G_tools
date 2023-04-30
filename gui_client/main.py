@@ -26,15 +26,15 @@ class MyWindow(QtWidgets.QWidget):
         group_box_layout = QtWidgets.QGridLayout(group_box)
 
         label = QtWidgets.QLabel(f"ip")
-        group_box_layout.addWidget(label, 0, 0) 
+        group_box_layout.addWidget(label, 0, 0)
         self.edit_box_ip = QtWidgets.QLineEdit()
-        self.edit_box_ip.setText('192.168.137.2')        
+        self.edit_box_ip.setText('192.168.137.2')
         group_box_layout.addWidget(self.edit_box_ip, 0, 1)
 
         label = QtWidgets.QLabel(f"port")
         group_box_layout.addWidget(label, 1, 0)
-        self.edit_box_port = QtWidgets.QLineEdit()     
-        self.edit_box_port.setText('69')        
+        self.edit_box_port = QtWidgets.QLineEdit()
+        self.edit_box_port.setText('69')
         group_box_layout.addWidget(self.edit_box_port, 1, 1)
 
         label = QtWidgets.QLabel(f"update interval (ms)")
@@ -52,7 +52,7 @@ class MyWindow(QtWidgets.QWidget):
         self.button_disconnect.setEnabled(False)
         self.button_disconnect.clicked.connect(self.disconnect_socket)
         group_box_layout.addWidget(self.button_disconnect, 2, 1)
-        layout.addWidget(group_box, 0, 0, 1, 2)                
+        layout.addWidget(group_box, 0, 0, 1, 2)       
 
         # create PSS detector group box
         group_box = QtWidgets.QGroupBox("PSS detector")
@@ -117,6 +117,7 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("rx signal", 0x7c448018, group_box_layout)
         self.add_read_location("N_id_2",    0x7c44801c, group_box_layout)
         self.add_read_location("N_id",      0x7c448020, group_box_layout)
+        self.add_read_location("sample_cnt_mismatch",      0x7c448024, group_box_layout)
 
         group_box.setLayout(group_box_layout)
 
@@ -191,14 +192,14 @@ class MyWindow(QtWidgets.QWidget):
             print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
             self.sock.send(req_msg.tobytes())
 
-    def add_read_location(self, label, addr, group_box_layout):
+    def add_read_location(self, label, addr, group_box_layout, signed = False):
         label = QtWidgets.QLabel(label)
         edit_box = QtWidgets.QLineEdit()
         edit_box.setReadOnly(True)
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(edit_box, idx, 1)
-        self.mem_read_items.append((addr, edit_box))
+        self.mem_read_items.append((addr, edit_box, signed))
 
     def connect_socket(self):
         ip = self.edit_box_ip.text()
@@ -244,6 +245,12 @@ class MyWindow(QtWidgets.QWidget):
         except:
             print('Error closing connection')
 
+    def twos_comp(self, val, bits):
+        """compute the 2's complement of int value val"""
+        if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
+            val = val - (1 << bits)        # compute negative value
+        return val        
+
     def update_data(self):
         # assembly request message
         num_items = len(self.mem_read_items)
@@ -277,7 +284,10 @@ class MyWindow(QtWidgets.QWidget):
                 val_str = recv_msg[5 + i*4 : 9 + i*4].decode("ascii")[::-1]
                 self.mem_read_items[i][1].setText(val_str)
             else:
-                self.mem_read_items[i][1].setText(f'{val:08x}')
+                if self.mem_read_items[i][2]:
+                    self.mem_read_items[i][1].setText(f'{self.twos_comp(val, 8)}')
+                else:
+                    self.mem_read_items[i][1].setText(f'{val:08x}')
         if self.first_read:
             # set noise_filter slider
             for item in self.mem_read_items:
