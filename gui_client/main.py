@@ -118,6 +118,7 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("N_id_2",    0x7c44801c, group_box_layout)
         self.add_read_location("N_id",      0x7c448020, group_box_layout)
         self.add_read_location("sample_cnt_mismatch",      0x7c448024, group_box_layout)
+        self.add_read_location("missed_SSBs",      0x7c448028, group_box_layout)
 
         group_box.setLayout(group_box_layout)
 
