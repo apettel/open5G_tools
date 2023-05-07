@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
                 {
                     print_debug("%02x ", recv_data[i]);
                 }
-                prprint_debugintf("\n");
+                print_debug("\n");
                 handle_rx_msg(recv_data, recv_data_len);
             }
         }
