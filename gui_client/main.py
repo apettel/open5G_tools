@@ -8,6 +8,7 @@ import socket
 class MyWindow(QtWidgets.QWidget):
     def __init__(self):
         self.first_read = True
+        self.read_fifo = False
         self.timer = QTimer()
         self.timer.setInterval(200)
         super().__init__()
@@ -52,6 +53,10 @@ class MyWindow(QtWidgets.QWidget):
         self.button_disconnect.setEnabled(False)
         self.button_disconnect.clicked.connect(self.disconnect_socket)
         group_box_layout.addWidget(self.button_disconnect, 2, 1)
+
+        self.check_box = QtWidgets.QCheckBox("read PBCH fifo")
+        group_box_layout.addWidget(self.check_box, 1, 2)
+
         layout.addWidget(group_box, 0, 0, 1, 2)
 
         # PSS detector stuff
@@ -115,6 +120,13 @@ class MyWindow(QtWidgets.QWidget):
         group_box_layout = QtWidgets.QGridLayout(group_box)
         self.add_read_location("id string", 0x7c44000c, group_box_layout)
         self.add_read_location("level", 0x7c440014, group_box_layout)
+        text_box = QtWidgets.QTextEdit()
+        text_box.setReadOnly(True)
+        label = QtWidgets.QLabel("data")
+        idx = len(self.mem_read_items)
+        group_box_layout.addWidget(label, idx, 0)
+        group_box_layout.addWidget(text_box, idx, 1)
+        idx += 1
         group_box.setLayout(group_box_layout)
         layout.addWidget(group_box, 1, 3, 1, 2)
 
@@ -243,12 +255,18 @@ class MyWindow(QtWidgets.QWidget):
         """compute the 2's complement of int value val"""
         if (val & (1 << (bits - 1))) != 0: # if sign bit is set e.g., 8bit: 128-255
             val = val - (1 << bits)        # compute negative value
-        return val        
+        return val
 
     def update_data(self):
+        mem_read_items2 = self.mem_read_items.copy()
+        if self.read_fifo and self.check_box.isChecked():
+            for _ in range(864//4):
+                mem_read_items2.append((0x7c44002c, 0, False))
+            self.read_fifo = False
+
         # assembly request message
-        num_items = len(self.mem_read_items)
-        num_read_bytes = 5 + 4*num_items
+        num_items = len(mem_read_items2)
+        num_read_bytes = 5 + 4 * num_items
         req_msg = np.empty(num_read_bytes, np.int8)
         req_msg[0] = ((num_read_bytes - 4) >> 0) & 0xFF
         req_msg[1] = ((num_read_bytes - 4) >> 8) & 0xFF
@@ -261,6 +279,7 @@ class MyWindow(QtWidgets.QWidget):
             req_msg[6 + i*4] = (addr >> 8) & 0xFF
             req_msg[7 + i*4] = (addr >> 16) & 0xFF
             req_msg[8 + i*4] = (addr >> 24) & 0xFF
+
         # send and wait for answer
         # print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
         self.sock.send(req_msg.tobytes())
@@ -269,6 +288,8 @@ class MyWindow(QtWidgets.QWidget):
             recv_msg += self.sock.recv(num_read_bytes - len(recv_msg))
         # print(f"receive {len(recv_msg)} bytes -> " + ":".join("{:02x}".format(c) for c in recv_msg))
         # fill GUI
+        fifo_data = np.empty(864, np.int8)
+        fifo_data_cnt = 0
         for i in range(num_items):
             val = int(recv_msg[5 + i*4] << 0)
             val += recv_msg[6 + i*4] << 8
@@ -282,6 +303,21 @@ class MyWindow(QtWidgets.QWidget):
                     self.mem_read_items[i][1].setText(f'{self.twos_comp(val, 8)}')
                 else:
                     self.mem_read_items[i][1].setText(f'{val:08x}')
+
+            if self.mem_read_items[i][0] == 0x7c440014:
+                if val >= 864:
+                    self.read_fifo = True
+
+            if self.mem_read_items[i][0] == 0x7c44002c:
+                fifo_data[fifo_data_cnt] = recv_msg[5 + i*4]
+                fifo_data[fifo_data_cnt] = recv_msg[6 + i*4]
+                fifo_data[fifo_data_cnt] = recv_msg[7 + i*4]
+                fifo_data[fifo_data_cnt] = recv_msg[8 + i*4]
+                fifo_data_cnt += 4
+
+        if fifo_data_cnt != 0:
+            self.text_box.set_text(fifo_data.tobytes())
+
         if self.first_read:
             # set noise_filter slider
             for item in self.mem_read_items:
