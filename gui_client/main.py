@@ -9,7 +9,7 @@ class MyWindow(QtWidgets.QWidget):
     def __init__(self):
         self.first_read = True
         self.timer = QTimer()
-        self.timer.setInterval(100)    
+        self.timer.setInterval(200)
         super().__init__()
         self.mem_read_items = list()
         self.initUI()
@@ -40,7 +40,7 @@ class MyWindow(QtWidgets.QWidget):
         label = QtWidgets.QLabel(f"update interval (ms)")
         group_box_layout.addWidget(label, 0, 2)
         self.edit_box_upd = QtWidgets.QLineEdit()
-        self.edit_box_upd.setText('100')
+        self.edit_box_upd.setText('200')
         self.edit_box_upd.textChanged.connect(self.upd_changed)
         group_box_layout.addWidget(self.edit_box_upd, 0, 3)
 
@@ -52,14 +52,11 @@ class MyWindow(QtWidgets.QWidget):
         self.button_disconnect.setEnabled(False)
         self.button_disconnect.clicked.connect(self.disconnect_socket)
         group_box_layout.addWidget(self.button_disconnect, 2, 1)
-        layout.addWidget(group_box, 0, 0, 1, 2)       
+        layout.addWidget(group_box, 0, 0, 1, 2)
 
-        # create PSS detector group box
+        # PSS detector stuff
         group_box = QtWidgets.QGroupBox("PSS detector")
-
-        # create a grid layout inside the group box with 10 rows and 2 columns
         group_box_layout = QtWidgets.QGridLayout(group_box)
-
         self.add_read_location("id string",     0x7c44400c, group_box_layout)
         self.add_read_location("peak count 0",  0x7c444020, group_box_layout)
         self.add_read_location("peak count 1",  0x7c444024, group_box_layout)
@@ -69,8 +66,6 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("mode",          0x7c444014, group_box_layout)
         self.add_read_location("CFO mode",      0x7c44401c, group_box_layout)
         self.add_read_location("CFO (Hz)",      0x7c444018, group_box_layout)
-        
-        
         label = QtWidgets.QLabel("CFO mode")
         self.combo_box_cfo = QtWidgets.QComboBox()
         self.combo_box_cfo.addItem("auto (0)")
@@ -79,7 +74,6 @@ class MyWindow(QtWidgets.QWidget):
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(self.combo_box_cfo, idx, 1)
-
         label = QtWidgets.QLabel("detection shift")
         self.combo_box_ds = QtWidgets.QComboBox()
         self.combo_box_ds.addItem("1")
@@ -92,7 +86,6 @@ class MyWindow(QtWidgets.QWidget):
         idx = len(self.mem_read_items) + 1
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(self.combo_box_ds, idx, 1)
-
         label = QtWidgets.QLabel("noise limit")
         self.slider = QtWidgets.QSlider(Qt.Horizontal)
         self.slider.setRange(0, 100)
@@ -100,18 +93,12 @@ class MyWindow(QtWidgets.QWidget):
         idx = len(self.mem_read_items) + 2
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(self.slider, idx, 1)
-
         group_box.setLayout(group_box_layout)
-
-        # add the group box to the main layout
         layout.addWidget(group_box, 1, 0, 1, 1)
 
-        # create Frame sync group box
+        # RX core stuff
         group_box = QtWidgets.QGroupBox("rx core")
-
-        # create a grid layout inside the group box with 10 rows and 2 columns
         group_box_layout = QtWidgets.QGridLayout(group_box)
-
         self.add_read_location("id string", 0x7c44800c, group_box_layout)
         self.add_read_location("fs state",  0x7c448014, group_box_layout)
         self.add_read_location("rx signal", 0x7c448018, group_box_layout)
@@ -120,11 +107,16 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("sample_cnt_mismatch",      0x7c448024, group_box_layout)
         self.add_read_location("missed_SSBs",      0x7c448028, group_box_layout)
         self.add_read_location("ibar_SSB",      0x7c44802c, group_box_layout)
-
         group_box.setLayout(group_box_layout)
+        layout.addWidget(group_box, 1, 1, 1, 2)
 
-        # add the group box to the main layout
-        layout.addWidget(group_box, 1, 1, 1, 2)        
+        # PBCH stuff
+        group_box = QtWidgets.QGroupBox("PBCH")
+        group_box_layout = QtWidgets.QGridLayout(group_box)
+        self.add_read_location("id string", 0x7c44000c, group_box_layout)
+        self.add_read_location("level", 0x7c440014, group_box_layout)
+        group_box.setLayout(group_box_layout)
+        layout.addWidget(group_box, 1, 3, 1, 2)
 
         self.setLayout(layout)
 
