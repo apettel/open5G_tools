@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -22,10 +23,19 @@ const unsigned map_width = 0x10000; // needs to be page aligned
 // rx core is at   0x 7C 44 80 00
 int sockfd, newsockfd, portno;
 unsigned page_size, mapped_size;
+int debug_level = 0;
 
 void handle_sigint(int sig)
 {
     running = 0;
+}
+
+void print_debug(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    if (debug_level > 0)
+        printf(format, args);
 }
 
 void handle_rx_msg(char *msg, uint32_t len)
@@ -43,12 +53,12 @@ void handle_rx_msg(char *msg, uint32_t len)
                 virt_addr = map_base + read_addr - (unsigned)map_start_addr;
                 uint32_t mem_data = *(volatile uint32_t*)virt_addr;
                 *(uint32_t*)(reply_msg + 1 + i*4) = mem_data;
-                printf("reading from addr %08x -> %08x\n", read_addr, mem_data);
+                print_debug("reading from addr %08x -> %08x\n", read_addr, mem_data);
             }
             // send reply
-            printf("sending reply: ");
-            for (int i = 0; i < len; i++)  printf("%02x ", reply_msg[i]);
-            printf("\n");
+            print_debug("sending reply: ");
+            for (int i = 0; i < len; i++)  print_debug("%02x ", reply_msg[i]);
+            print_debug("\n");
             if (send(newsockfd, &len, sizeof(len), 0) == -1) {
                 perror("send");
                 exit(EXIT_FAILURE);
@@ -66,7 +76,7 @@ void handle_rx_msg(char *msg, uint32_t len)
                 unsigned write_addr = *(uint32_t*)(msg + 1 + i*8);
                 virt_addr = map_base + write_addr - (unsigned)map_start_addr;
                 uint32_t mem_data = *(uint32_t*)(msg + 1 + 4 + i*8);
-                printf("write %08x to addr %08x\n", mem_data, mem_data);
+                print_debug("write %08x to addr %08x\n", mem_data, mem_data);
                 *(volatile uint32_t*)virt_addr = mem_data;
             }
         break;
@@ -105,6 +115,11 @@ int main(int argc, char *argv[]) {
     unsigned int clilen;
     struct sockaddr_in serv_addr, cli_addr;
     int n;
+
+    if (argc > 1 && strncmp(argv[1], "-d", 2))
+        debug_level = 1;
+    else
+        debug_level = 0;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -180,12 +195,12 @@ int main(int argc, char *argv[]) {
 
             if (recv_data_len != 0)
             {
-                printf("Received %d bytes: ", recv_data_len);
+                print_debug("Received %d bytes: ", recv_data_len);
                 for (unsigned int i = 0; i < recv_data_len; i++)
                 {
-                    printf("%02x ", recv_data[i]);
+                    print_debug("%02x ", recv_data[i]);
                 }
-                printf("\n");
+                prprint_debugintf("\n");
                 handle_rx_msg(recv_data, recv_data_len);
             }
         }
