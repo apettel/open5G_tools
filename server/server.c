@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serv_addr, cli_addr;
     int n;
 
-    if (argc > 1 && strncmp(argv[1], "-d", 2))
+    if (argc > 1 && (strncmp(argv[1], "-d", 2) == 0))
         debug_level = 1;
     else
         debug_level = 0;
