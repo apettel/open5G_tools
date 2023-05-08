@@ -35,7 +35,8 @@ void print_debug(const char *format, ...)
     va_list args;
     va_start(args, format);
     if (debug_level > 0)
-        printf(format, args);
+        vprintf(format, args);
+    va_end(args);
 }
 
 void handle_rx_msg(char *msg, uint32_t len)
