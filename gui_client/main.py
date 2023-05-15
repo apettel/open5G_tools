@@ -72,6 +72,9 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("mode",          0x7c444014, group_box_layout)
         self.add_read_location("CFO mode",      0x7c44401c, group_box_layout)
         self.add_read_location("CFO (Hz)",      0x7c444018, group_box_layout)
+        self.add_read_location("peak_fifo_level",      0x7c444034, group_box_layout)
+        self.add_read_location("data_fifo_level",      0x7c444038, group_box_layout)
+        
         label = QtWidgets.QLabel("CFO mode")
         self.combo_box_cfo = QtWidgets.QComboBox()
         self.combo_box_cfo.addItem("auto (0)")
