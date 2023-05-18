@@ -117,6 +117,7 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("missed_SSBs",      0x7c448028, group_box_layout)
         self.add_read_location("ibar_SSB",      0x7c44802c, group_box_layout)
         self.add_read_location("clks_btwn_SSB",      0x7c448030, group_box_layout)
+        self.add_read_location("num_disconnects",      0x7c448034, group_box_layout)
         group_box.setLayout(group_box_layout)
         layout.addWidget(group_box, 1, 1, 1, 2)
 
