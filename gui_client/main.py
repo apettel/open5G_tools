@@ -58,7 +58,7 @@ class MyWindow(QtWidgets.QWidget):
         self.check_box = QtWidgets.QCheckBox("read PBCH fifo")
         group_box_layout.addWidget(self.check_box, 1, 2)
 
-        layout.addWidget(group_box, 0, 0, 1, 2)
+        layout.addWidget(group_box, 0, 0, 1, 4)
 
         # PSS detector stuff
         group_box = QtWidgets.QGroupBox("PSS detector")
@@ -103,7 +103,7 @@ class MyWindow(QtWidgets.QWidget):
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(self.slider, idx, 1)
         group_box.setLayout(group_box_layout)
-        layout.addWidget(group_box, 1, 0, 2, 1)
+        layout.addWidget(group_box, 1, 1, 2, 1)
 
         # RX core stuff
         group_box = QtWidgets.QGroupBox("rx core")
