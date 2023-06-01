@@ -121,11 +121,20 @@ class MyWindow(QtWidgets.QWidget):
         group_box_layout = QtWidgets.QGridLayout(group_box)
         self.add_read_location("id string", 0x7c44C00c, group_box_layout)
         self.add_read_location("state",  0x7c44C014, group_box_layout)
+        self.add_read_location("reconnect_mode",  0x7c44C018, group_box_layout)
         self.add_read_location("sample_cnt_mismatch",      0x7c44C024, group_box_layout)
         self.add_read_location("missed_SSBs",      0x7c44C028, group_box_layout)
         self.add_read_location("ibar_SSB",      0x7c44C02c, group_box_layout)
         self.add_read_location("clks_btwn_SSB",      0x7c44C030, group_box_layout)
         self.add_read_location("num_disconnects",      0x7c44C034, group_box_layout)
+        label = QtWidgets.QLabel("reconnect_mode")
+        self.combo_box_rm = QtWidgets.QComboBox()
+        self.combo_box_rm.addItem("auto (0)")
+        self.combo_box_rm.addItem("once (1)")
+        self.combo_box_rm.currentIndexChanged.connect(self.set_reconnect_mode)
+        idx = len(self.mem_read_items)
+        group_box_layout.addWidget(label, idx, 0)
+        group_box_layout.addWidget(self.combo_box_rm, idx, 1)
         group_box.setLayout(group_box_layout)
         layout.addWidget(group_box, 2, 2, 1, 1)
 
@@ -152,6 +161,26 @@ class MyWindow(QtWidgets.QWidget):
         except:
             pass
 
+    def set_reconnect_mode(self, idx):
+        if self.button_connect.isEnabled() is False:
+            num_write_bytes = 13
+            req_msg = np.empty(num_write_bytes, np.int8)
+            req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
+            req_msg[1] = ((num_write_bytes - 4) >> 8) & 0xFF
+            req_msg[2] = ((num_write_bytes - 4) >> 16) & 0xFF
+            req_msg[3] = ((num_write_bytes - 4) >> 24) & 0xFF
+            req_msg[4] = 1 # mode 1 is write
+            req_msg[5] = 0x18  # 0x7C44C018
+            req_msg[6] = 0xC0
+            req_msg[7] = 0x44
+            req_msg[8] = 0x7C
+            req_msg[9] = idx
+            req_msg[10] = 0
+            req_msg[11] = 0
+            req_msg[12] = 0
+            print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+            self.sock.send(req_msg.tobytes())
+
     def set_noise_limit(self, value):
         noise_limit = int(2**(value/100*32))
         num_write_bytes = 13
@@ -170,10 +199,10 @@ class MyWindow(QtWidgets.QWidget):
         req_msg[11] = (noise_limit >> 16) & 0xFF
         req_msg[12] = (noise_limit >> 24) & 0xFF
         print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
-        self.sock.send(req_msg.tobytes())        
+        self.sock.send(req_msg.tobytes())
     
     def set_CFO_mode(self, idx):
-        if self.button_connect.isEnabled() == False:
+        if self.button_connect.isEnabled() is False:
             num_write_bytes = 13
             req_msg = np.empty(num_write_bytes, np.int8)
             req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
