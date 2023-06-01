@@ -103,24 +103,31 @@ class MyWindow(QtWidgets.QWidget):
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(self.slider, idx, 1)
         group_box.setLayout(group_box_layout)
-        layout.addWidget(group_box, 1, 0, 1, 1)
+        layout.addWidget(group_box, 1, 0, 2, 1)
 
         # RX core stuff
         group_box = QtWidgets.QGroupBox("rx core")
         group_box_layout = QtWidgets.QGridLayout(group_box)
         self.add_read_location("id string", 0x7c44800c, group_box_layout)
-        self.add_read_location("fs state",  0x7c448014, group_box_layout)
         self.add_read_location("rx signal", 0x7c448018, group_box_layout)
         self.add_read_location("N_id_2",    0x7c44801c, group_box_layout)
         self.add_read_location("N_id",      0x7c448020, group_box_layout)
-        self.add_read_location("sample_cnt_mismatch",      0x7c448024, group_box_layout)
-        self.add_read_location("missed_SSBs",      0x7c448028, group_box_layout)
-        self.add_read_location("ibar_SSB",      0x7c44802c, group_box_layout)
-        self.add_read_location("clks_btwn_SSB",      0x7c448030, group_box_layout)
-        self.add_read_location("num_disconnects",      0x7c448034, group_box_layout)
         self.add_read_location("N_id_used",      0x7c448038, group_box_layout)
         group_box.setLayout(group_box_layout)
-        layout.addWidget(group_box, 1, 1, 1, 2)
+        layout.addWidget(group_box, 1, 2, 1, 1)
+
+        # frame sync stuff
+        group_box = QtWidgets.QGroupBox("frame_sync core")
+        group_box_layout = QtWidgets.QGridLayout(group_box)
+        self.add_read_location("id string", 0x7c44C00c, group_box_layout)
+        self.add_read_location("state",  0x7c44C014, group_box_layout)
+        self.add_read_location("sample_cnt_mismatch",      0x7c44C024, group_box_layout)
+        self.add_read_location("missed_SSBs",      0x7c44C028, group_box_layout)
+        self.add_read_location("ibar_SSB",      0x7c44C02c, group_box_layout)
+        self.add_read_location("clks_btwn_SSB",      0x7c44C030, group_box_layout)
+        self.add_read_location("num_disconnects",      0x7c44C034, group_box_layout)
+        group_box.setLayout(group_box_layout)
+        layout.addWidget(group_box, 2, 2, 1, 1)
 
         # PBCH stuff
         group_box = QtWidgets.QGroupBox("PBCH")
@@ -135,7 +142,7 @@ class MyWindow(QtWidgets.QWidget):
         group_box_layout.addWidget(self.text_box, idx, 1)
         idx += 1
         group_box.setLayout(group_box_layout)
-        layout.addWidget(group_box, 1, 3, 1, 2)
+        layout.addWidget(group_box, 1, 3, 2, 1)
 
         self.setLayout(layout)
 
