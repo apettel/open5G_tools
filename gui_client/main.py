@@ -131,10 +131,17 @@ class MyWindow(QtWidgets.QWidget):
         self.combo_box_rm = QtWidgets.QComboBox()
         self.combo_box_rm.addItem("auto (0)")
         self.combo_box_rm.addItem("once (1)")
+        self.combo_box_rm.addItem("idle (2)")
         self.combo_box_rm.currentIndexChanged.connect(self.set_reconnect_mode)
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
         group_box_layout.addWidget(self.combo_box_rm, idx, 1)
+
+        self.button_conn_once = QtWidgets.QPushButton("conn once")
+        self.button_conn_once.setEnabled(True)
+        self.button_conn_once.clicked.connect(self.conn_once)
+        group_box_layout.addWidget(self.button_conn_once, idx, 2)
+
         group_box.setLayout(group_box_layout)
         layout.addWidget(group_box, 2, 2, 1, 1)
 
@@ -160,6 +167,25 @@ class MyWindow(QtWidgets.QWidget):
             self.timer.setInterval(int(self.edit_box_upd.text()))
         except:
             pass
+
+    def conn_once(self):
+        num_write_bytes = 13
+        req_msg = np.empty(num_write_bytes, np.int8)
+        req_msg[0] = ((num_write_bytes - 4) >> 0) & 0xFF
+        req_msg[1] = ((num_write_bytes - 4) >> 8) & 0xFF
+        req_msg[2] = ((num_write_bytes - 4) >> 16) & 0xFF
+        req_msg[3] = ((num_write_bytes - 4) >> 24) & 0xFF
+        req_msg[4] = 1 # mode 1 is write
+        req_msg[5] = 0x18  # 0x7C44C018
+        req_msg[6] = 0xC0
+        req_msg[7] = 0x44
+        req_msg[8] = 0x7C
+        req_msg[9] = 1 # connect once
+        req_msg[10] = 0
+        req_msg[11] = 0
+        req_msg[12] = 0
+        print("send " + ":".join("{:02x}".format(c) for c in req_msg.tobytes()))
+        self.sock.send(req_msg.tobytes())
 
     def set_reconnect_mode(self, idx):
         if self.button_connect.isEnabled() is False:
