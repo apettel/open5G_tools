@@ -132,6 +132,7 @@ class MyWindow(QtWidgets.QWidget):
         self.combo_box_rm.addItem("auto (0)")
         self.combo_box_rm.addItem("once (1)")
         self.combo_box_rm.addItem("idle (2)")
+        self.combo_box_rm.addItem("disc (3)")
         self.combo_box_rm.currentIndexChanged.connect(self.set_reconnect_mode)
         idx = len(self.mem_read_items)
         group_box_layout.addWidget(label, idx, 0)
