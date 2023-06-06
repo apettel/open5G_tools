@@ -17,6 +17,9 @@ QLineEdit *numDisconnectsEdit;
 QLineEdit *cellidEdit;
 QTcpSocket *socket;
 
+unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034};
+unsigned int num_read_items = 3;
+
 void update_status()
 {
     logEdit->append("update");
@@ -28,29 +31,53 @@ void update_status()
     }
     
     QByteArray data;
-    unsigned int num_req_items = 3;
-    unsigned int num_read_bytes = num_req_items * 4 + 1;
+    unsigned int num_read_bytes = num_read_items * 4 + 1;
     data.append(QByteArray::fromHex("00000000"));
-    data[0] = num_read_bytes && 0xFF;
+    data[0] = num_read_bytes & 0xFF;
     data.append(QByteArray::fromHex("00"));
-    for (int i = 0; i < num_req_items; i ++)
+    for (int i = 0; i < num_read_items; i ++)
     {
         QByteArray data2 = QByteArray::fromHex("00000000");
-        unsigned int addr = 0x7c448020;
-        data2[0] = addr & 0xFF;
-        data2[1] = (addr >> 8) & 0xFF;
-        data2[2] = (addr >> 16) & 0xFF;
-        data2[3] = (addr >> 24) & 0xFF;
+        data2[0] = read_addr[i] & 0xFF;
+        data2[1] = (read_addr[i] >> 8) & 0xFF;
+        data2[2] = (read_addr[i] >> 16) & 0xFF;
+        data2[3] = (read_addr[i] >> 24) & 0xFF;
         data.append(data2);
     }
     logEdit->append(QString("sending ") + data.toHex());
     qDebug("%d", data.size());
     socket->write(data);
     socket->waitForBytesWritten();
-    if (socket->bytesAvailable() > 0)
+    QByteArray rx_data;
+    unsigned int try_cnt = 0;
+    while ((rx_data.size() < (num_read_items * 4 + 5)) && try_cnt < 10)
     {
-        QByteArray data = socket->readAll();
-        logEdit->append(QString("receive ") + data.toHex());
+        if (socket->bytesAvailable() > 0)
+        {
+            rx_data.append(socket->readAll());
+            logEdit->append(QString("receive ") + rx_data.toHex());
+        }
+        try_cnt++;
+    }
+    
+    if (rx_data.size() != num_read_items * 4 + 5)
+    {
+        qDebug("Did not receive all data!");
+        return;
+    }
+    
+    for (int i = 0; i < num_read_items; i++)
+    {
+        unsigned int val = rx_data[5 + 4*i];
+        val += rx_data[6 + 4*i] << 8;
+        val += rx_data[7 + 4*i] << 16;
+        val += rx_data[8 + 4*i] << 24;
+        if (i == 0)
+            fsStatusEdit->setText(QString::number(val));
+        else if (i == 1)
+            cellidEdit->setText(QString::number(val));
+        else if (i == 2)
+            numDisconnectsEdit->setText(QString::number(val));
     }
 }
 
