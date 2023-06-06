@@ -19,14 +19,25 @@ QTcpSocket *socket;
 
 unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034};
 unsigned int num_read_items = 3;
+bool busy = false;
+
+void connect();
 
 void update_status()
 {
+    if (busy)
+    {
+        qDebug("busy!");
+        return;
+    }
+
+    busy = true;
     logEdit->append("update");
     
     if(socket->state() != QAbstractSocket::ConnectedState)
     {
         qDebug("Not connected!");
+        busy = false;
         return;
     }
     
@@ -63,15 +74,16 @@ void update_status()
     if (rx_data.size() != num_read_items * 4 + 5)
     {
         qDebug("Did not receive all data!");
+        busy = false;
         return;
     }
     
     for (int i = 0; i < num_read_items; i++)
     {
-        unsigned int val = rx_data[5 + 4*i];
-        val += rx_data[6 + 4*i] << 8;
-        val += rx_data[7 + 4*i] << 16;
-        val += rx_data[8 + 4*i] << 24;
+        unsigned int val = static_cast<unsigned char>(rx_data[5 + 4*i]);
+        val += static_cast<unsigned char>(rx_data[6 + 4*i]) << 8;
+        val += static_cast<unsigned char>(rx_data[7 + 4*i]) << 16;
+        val += static_cast<unsigned char>(rx_data[8 + 4*i]) << 24;
         if (i == 0)
             fsStatusEdit->setText(QString::number(val));
         else if (i == 1)
@@ -79,6 +91,7 @@ void update_status()
         else if (i == 2)
             numDisconnectsEdit->setText(QString::number(val));
     }
+    busy = false;
 }
 
 void connect()
