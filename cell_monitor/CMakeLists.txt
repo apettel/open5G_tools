@@ -18,5 +18,8 @@ set(SOURCES
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+SET(CMAKE_CXX_FLAGS_DEBUG "... -lpthread")
+SET(CMAKE_CXX_FLAGS_RELEASE "... -lpthread")
+
 target_include_directories(${PROJECT_NAME} PRIVATE ${LIBIIO_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Core Qt5::Widgets Qt5::Network ${LIBIIO_LIBRARIES})

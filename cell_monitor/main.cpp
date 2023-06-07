@@ -10,6 +10,8 @@
 #include <QTcpSocket>
 #include <iio.h>
 #include <iostream>
+#include <atomic>
+#include <thread>
 
 QTextEdit *logEdit;
 QTimer *timer;
@@ -32,55 +34,92 @@ enum Connect_state {
     connected
 };
 Connect_state connect_state = Connect_state::not_connected;
+enum Iio_state {
+    open,
+    closed
+};
+Iio_state iio_state = Iio_state::closed;
 
 void connect();
 void connectToCell();
 
-void init_iio_buffer()
+void init_iio_device()
+{
+
+}
+
+void open_iio_buffer()
 {
     // Initialize libiio context
-    struct iio_context *ctx = iio_create_default_context();
+    ctx = iio_create_context_from_uri("ip:192.168.137.2");
     if (!ctx) {
         std::cerr << "Failed to create libiio context" << std::endl;
         return;
     }
 
     // Open the first available IIO device
-    struct iio_device *dev = iio_context_find_device(ctx, "");
+    dev = iio_context_find_device(ctx, "open5G_phy");
     if (!dev) {
         std::cerr << "Failed to find IIO device" << std::endl;
         iio_context_destroy(ctx);
         return;
     }
 
+    unsigned int nb_channels = iio_device_get_channels_count(dev);
+    qDebug("iio device has %d channels", nb_channels);
+    struct iio_channel *ch = iio_device_get_channel(dev, 0);
+    iio_channel_enable(ch);
+
     // Create buffer for reading samples
-    const size_t bufferSize = 1024;
-    struct iio_buffer *buffer = iio_device_create_buffer(dev, bufferSize, false);
+    const size_t bufferSize = 1024*10;
+    buffer = iio_device_create_buffer(dev, bufferSize, false);
     if (!buffer) {
         std::cerr << "Failed to create buffer" << std::endl;
         // iio_device_destroy(dev);
         iio_context_destroy(ctx);
         return;
     }
+
+    bool blocking = false;
+    int ret = iio_buffer_set_blocking_mode(buffer, blocking);
+
+    qDebug("iio buffer created");
+    iio_state = Iio_state::open;
 }
 
+std::vector<char *> subframes;
+std::atomic_bool stop_read_thread(true);
 void read_iio_buffer()
 {
-    int ret = iio_buffer_refill(buffer);
-    if (ret < 0) {
-        std::cerr << "Failed to refill buffer" << std::endl;
-        return;
+    std::cout << "thread launched" << std::endl;
+    while (!stop_read_thread)
+    {
+        int ret = iio_buffer_refill(buffer);
+        if (ret < 0) {
+            if (ret == -EAGAIN)
+                std::cout << "no data in buffer" << std::endl;
+            else
+                std::cerr << "Failed to refill buffer" << std::endl;
+        }
+        subframes.push_back(nullptr);
+        // logEdit->append(QString("read ") + QString::number(ret) + QString(" bytes"));
+        // std::cout << "." << std::endl;
     }
-    logEdit->append(QString("read ") + QString::number(ret) + QString(" bytes"));
 }
+std::thread *read_thread;
 
 void close_iio_buffer()
 {
+    iio_state = Iio_state::closed;
     // Cleanup
+    qDebug("iio_buffer_cancel");
     iio_buffer_cancel(buffer);
+    qDebug("iio_buffer_destroy");
     iio_buffer_destroy(buffer);
     // iio_device_destroy(dev);
+    qDebug("iio_context_destroy");
     iio_context_destroy(ctx);
+    qDebug("iio_context_destroyed");
     buffer = nullptr;
     dev = nullptr;
     ctx = nullptr;
@@ -95,7 +134,7 @@ void update_status()
     }
 
     busy = true;
-    logEdit->append("update");
+    // logEdit->append("update");
     
     if(socket->state() != QAbstractSocket::ConnectedState)
     {
@@ -119,7 +158,7 @@ void update_status()
         data2[3] = (read_addr[i] >> 24) & 0xFF;
         data.append(data2);
     }
-    logEdit->append(QString("sending ") + data.toHex());
+    // logEdit->append(QString("sending ") + data.toHex());
     socket->write(data);
     socket->waitForBytesWritten();
     QByteArray rx_data;
@@ -129,7 +168,7 @@ void update_status()
         if (socket->bytesAvailable() > 0)
         {
             rx_data.append(socket->readAll());
-            logEdit->append(QString("receive ") + rx_data.toHex());
+            // logEdit->append(QString("receive ") + rx_data.toHex());
         }
         try_cnt++;
     }
@@ -155,7 +194,9 @@ void update_status()
                 if (connect_state != Connect_state::connected)
                 {
                     connect_state = Connect_state::connected;
-                    init_iio_buffer();
+                    open_iio_buffer();
+                    stop_read_thread = false;
+                    read_thread = new std::thread(read_iio_buffer);
                 }
             }
             else if (val != 2)
@@ -163,6 +204,9 @@ void update_status()
                 if (connect_state == Connect_state::connected)
                 {
                     connect_state = Connect_state::not_connected;
+                    stop_read_thread = true;
+                    read_thread->join();
+                    subframes.clear();
                     close_iio_buffer();
                 }
             }
@@ -175,6 +219,7 @@ void update_status()
     busy = false;
     if (fsStatusEdit->text() != QString("2"))
         connectToCell();
+    logEdit->append(QString("receive buffers") + QString::number(subframes.size()));
 }
 
 void connect()
@@ -192,7 +237,8 @@ void connect()
         socket->connectToHost("192.168.137.2", 69);
         if (socket->waitForConnected(1000))
             qDebug("Connected!");
-        timer->start(100);
+        init_iio_device();
+        timer->start(200);
         connectButton->setText("disconnect");
     }
 }
@@ -208,7 +254,7 @@ void connectToCell()
     data.append(QByteArray::fromHex("01"));
     data.append(QByteArray::fromHex("18c0447c"));  //  0x7C44C018
     data.append(QByteArray::fromHex("01000000"));
-    logEdit->append(QString("sending ") + data.toHex());
+    // logEdit->append(QString("sending ") + data.toHex());
     socket->write(data);
     socket->waitForBytesWritten();
 }
