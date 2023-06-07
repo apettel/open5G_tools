@@ -8,6 +8,8 @@
 #include <QTimer>
 #include <QTextEdit>
 #include <QTcpSocket>
+#include <iio.h>
+#include <iostream>
 
 QTextEdit *logEdit;
 QTimer *timer;
@@ -18,12 +20,71 @@ QLineEdit *numDisconnectsEdit;
 QLineEdit *cellidEdit;
 QTcpSocket *socket;
 
+struct iio_context *ctx = nullptr;
+struct iio_device *dev = nullptr;
+struct iio_buffer *buffer = nullptr;
+
 unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034};
 unsigned int num_read_items = 3;
 bool busy = false;
+enum Connect_state {
+    not_connected,
+    connected
+};
+Connect_state connect_state = Connect_state::not_connected;
 
 void connect();
 void connectToCell();
+
+void init_iio_buffer()
+{
+    // Initialize libiio context
+    struct iio_context *ctx = iio_create_default_context();
+    if (!ctx) {
+        std::cerr << "Failed to create libiio context" << std::endl;
+        return;
+    }
+
+    // Open the first available IIO device
+    struct iio_device *dev = iio_context_find_device(ctx, "");
+    if (!dev) {
+        std::cerr << "Failed to find IIO device" << std::endl;
+        iio_context_destroy(ctx);
+        return;
+    }
+
+    // Create buffer for reading samples
+    const size_t bufferSize = 1024;
+    struct iio_buffer *buffer = iio_device_create_buffer(dev, bufferSize, false);
+    if (!buffer) {
+        std::cerr << "Failed to create buffer" << std::endl;
+        // iio_device_destroy(dev);
+        iio_context_destroy(ctx);
+        return;
+    }
+}
+
+void read_iio_buffer()
+{
+    int ret = iio_buffer_refill(buffer);
+    if (ret < 0) {
+        std::cerr << "Failed to refill buffer" << std::endl;
+        return;
+    }
+    logEdit->append(QString("read ") + QString::number(ret) + QString(" bytes"));
+}
+
+void close_iio_buffer()
+{
+    // Cleanup
+    iio_buffer_cancel(buffer);
+    iio_buffer_destroy(buffer);
+    // iio_device_destroy(dev);
+    iio_context_destroy(ctx);
+    buffer = nullptr;
+    dev = nullptr;
+    ctx = nullptr;
+}
 
 void update_status()
 {
@@ -87,7 +148,25 @@ void update_status()
         val += static_cast<unsigned char>(rx_data[7 + 4*i]) << 16;
         val += static_cast<unsigned char>(rx_data[8 + 4*i]) << 24;
         if (i == 0)
+        {
             fsStatusEdit->setText(QString::number(val));
+            if (val == 2)
+            {
+                if (connect_state != Connect_state::connected)
+                {
+                    connect_state = Connect_state::connected;
+                    init_iio_buffer();
+                }
+            }
+            else if (val != 2)
+            {
+                if (connect_state == Connect_state::connected)
+                {
+                    connect_state = Connect_state::not_connected;
+                    close_iio_buffer();
+                }
+            }
+        }
         else if (i == 1)
             cellidEdit->setText(QString::number(val));
         else if (i == 2)

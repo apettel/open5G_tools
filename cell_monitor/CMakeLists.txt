@@ -9,10 +9,14 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt5 COMPONENTS Core Widgets REQUIRED)
 find_package(Qt5Network REQUIRED)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBIIO REQUIRED libiio)
+
 set(SOURCES
     main.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Core Qt5::Widgets Qt5::Network)
+target_include_directories(${PROJECT_NAME} PRIVATE ${LIBIIO_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt5::Core Qt5::Widgets Qt5::Network ${LIBIIO_LIBRARIES})
