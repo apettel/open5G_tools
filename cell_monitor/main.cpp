@@ -12,6 +12,7 @@
 QTextEdit *logEdit;
 QTimer *timer;
 QPushButton *connectButton;
+QPushButton *connectCellButton;
 QLineEdit *fsStatusEdit;
 QLineEdit *numDisconnectsEdit;
 QLineEdit *cellidEdit;
@@ -22,6 +23,7 @@ unsigned int num_read_items = 3;
 bool busy = false;
 
 void connect();
+void connectToCell();
 
 void update_status()
 {
@@ -45,6 +47,7 @@ void update_status()
     unsigned int num_read_bytes = num_read_items * 4 + 1;
     data.append(QByteArray::fromHex("00000000"));
     data[0] = num_read_bytes & 0xFF;
+    data[1] = (num_read_bytes >> 8) & 0xFF;
     data.append(QByteArray::fromHex("00"));
     for (int i = 0; i < num_read_items; i ++)
     {
@@ -56,12 +59,11 @@ void update_status()
         data.append(data2);
     }
     logEdit->append(QString("sending ") + data.toHex());
-    qDebug("%d", data.size());
     socket->write(data);
     socket->waitForBytesWritten();
     QByteArray rx_data;
     unsigned int try_cnt = 0;
-    while ((rx_data.size() < (num_read_items * 4 + 5)) && try_cnt < 10)
+    while ((rx_data.size() < (num_read_items * 4 + 5)) && try_cnt < 100)
     {
         if (socket->bytesAvailable() > 0)
         {
@@ -92,6 +94,8 @@ void update_status()
             numDisconnectsEdit->setText(QString::number(val));
     }
     busy = false;
+    if (fsStatusEdit->text() != QString("2"))
+        connectToCell();
 }
 
 void connect()
@@ -112,6 +116,22 @@ void connect()
         timer->start(100);
         connectButton->setText("disconnect");
     }
+}
+
+void connectToCell()
+{
+    if (socket->state() != QAbstractSocket::ConnectedState)
+        return;
+    if (fsStatusEdit->text() != QString("0"))
+        return;
+    QByteArray data;
+    data.append(QByteArray::fromHex("09000000"));
+    data.append(QByteArray::fromHex("01"));
+    data.append(QByteArray::fromHex("18c0447c"));  //  0x7C44C018
+    data.append(QByteArray::fromHex("01000000"));
+    logEdit->append(QString("sending ") + data.toHex());
+    socket->write(data);
+    socket->waitForBytesWritten();
 }
 
 int main(int argc, char *argv[]) {
@@ -146,9 +166,15 @@ int main(int argc, char *argv[]) {
     settingsLayout.addWidget(textField, 2, 1);
 
     connectButton = new QPushButton("connect");
-    settingsLayout.addWidget(connectButton, 3, 1);
+    settingsLayout.addWidget(connectButton, 3, 0);
     QObject::connect(connectButton, &QPushButton::clicked, [&]() {
         connect();
+    });
+
+    connectCellButton = new QPushButton("connect to cell");
+    settingsLayout.addWidget(connectCellButton, 3, 1);
+    QObject::connect(connectCellButton, &QPushButton::clicked, [&]() {
+        connectToCell();
     });
 
     QGroupBox logGroupBox("Log");
