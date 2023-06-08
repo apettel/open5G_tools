@@ -61,7 +61,7 @@ unsigned int iio_sample_size = 0;
 const size_t iio_buffer_size = 1024*10;
 void open_iio_buffer()
 {
-    unsigned int timeout_ms = 3000;
+    unsigned int timeout_ms = 30000;
     iio_context_set_timeout(ctx, timeout_ms);
 
     // Open the first available IIO device
@@ -98,14 +98,14 @@ void open_iio_buffer()
         return;
     }
 
-    bool blocking = false;
-    int ret = iio_buffer_set_blocking_mode(buffer, blocking);
-    if (ret != 0)
-    {
-        char buf[256];
-        iio_strerror(-(int)ret, buf, sizeof(buf));
-        std::cerr << "Failed to set blocking = false, code: " << ret << " error: " << buf << std::endl;
-    }
+    // bool blocking = false;
+    // int ret = iio_buffer_set_blocking_mode(buffer, blocking);
+    // if (ret != 0)
+    // {
+    //     char buf[256];
+    //     iio_strerror(-(int)ret, buf, sizeof(buf));
+    //     std::cerr << "Failed to set blocking = false, code: " << ret << " error: " << buf << std::endl;
+    // }
     qDebug("iio buffer created");
     iio_state = Iio_state::open;
 }
@@ -290,6 +290,7 @@ void update_status()
         if (buffer != nullptr)
         {
             stop_read_thread = true;
+            iio_buffer_cancel(buffer);
             read_thread->join();
             free(read_thread);
             read_thread = nullptr;
