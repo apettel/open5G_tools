@@ -130,7 +130,7 @@ void read_iio_buffer()
         }
         else
         {
-            qDebug("rx %d bytes", ret);
+            // qDebug("rx %d bytes", ret);
             if (ret != iio_buffer_size * iio_sample_size)
                 qDebug("Buffer not full!");
             unsigned char *start = static_cast<unsigned char *>(iio_buffer_start(buffer));
@@ -190,6 +190,9 @@ void delay( int millisecondsToWait )
         QCoreApplication::processEvents( QEventLoop::AllEvents, 100 );
     }
 }
+
+unsigned int num_disconnects;
+unsigned int num_disconnects_old = 0;
 
 void update_status()
 {
@@ -263,38 +266,43 @@ void update_status()
                     qDebug("connected");
                 }
             }
-            else if (val != 2)
+            else if (val == 0)
             {
                 if (connect_state == Connect_state::connected)
                 {
                     connect_state = Connect_state::not_connected;
                     qDebug("disconnected");
-                    // delay(2000);
-                    stop_read_thread = true;
-                    read_thread->join();
-                    free(read_thread);
-                    read_thread = nullptr;
-                    subframes.clear();
-                    close_iio_buffer();
-                    open_iio_buffer();
-                    if (iio_state == Iio_state::open)
-                    {
-                        stop_read_thread = false;
-                        read_thread = new std::thread(read_iio_buffer);
-                    }
                 }
             }
         }
         else if (i == 1)
             cellidEdit->setText(QString::number(val));
         else if (i == 2)
+        {
             numDisconnectsEdit->setText(QString::number(val));
+            num_disconnects = val;
+        }
     }
     busy = false;
-    if (fsStatusEdit->text() != QString("2"))
+    if ((fsStatusEdit->text() != QString("2")) && (num_disconnects > num_disconnects_old))
     {
         qDebug("connecting ....");
-        subframes.clear();
+        if (buffer != nullptr)
+        {
+            stop_read_thread = true;
+            read_thread->join();
+            free(read_thread);
+            read_thread = nullptr;
+            close_iio_buffer();
+            subframes.clear();
+        }
+        else
+            qDebug("buffer already closed!");
+
+        open_iio_buffer();
+        stop_read_thread = false;
+        read_thread = new std::thread(read_iio_buffer);
+        num_disconnects_old = num_disconnects;
         connectToCell();
     }
     logEdit->append(QString("received buffers ") + QString::number(subframes.size()));
