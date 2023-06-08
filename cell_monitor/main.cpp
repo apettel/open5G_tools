@@ -12,6 +12,8 @@
 #include <iostream>
 #include <atomic>
 #include <thread>
+#include "srsgui/srsgui++.h"
+#include "srsgui/common/Events.h"
 
 QTextEdit *logEdit;
 QTimer *timer;
@@ -21,6 +23,7 @@ QLineEdit *fsStatusEdit;
 QLineEdit *numDisconnectsEdit;
 QLineEdit *cellidEdit;
 QTcpSocket *socket;
+ScatterWidget *scatterWidget;
 
 struct iio_context *ctx = nullptr;
 struct iio_device *dev = nullptr;
@@ -48,6 +51,8 @@ void init_iio_device()
 
 }
 
+unsigned int iio_sample_size = 0;
+const size_t iio_buffer_size = 1024*10;
 void open_iio_buffer()
 {
     // Initialize libiio context
@@ -70,9 +75,21 @@ void open_iio_buffer()
     struct iio_channel *ch = iio_device_get_channel(dev, 0);
     iio_channel_enable(ch);
 
+    iio_sample_size = iio_device_get_sample_size(dev);
+	if (iio_sample_size == 0) {
+		fprintf(stderr, "Unable to get sample size, returned 0\n");
+		iio_context_destroy(ctx);
+		return;
+	} else if (iio_sample_size < 0) {
+		char buf[256];
+		iio_strerror(errno, buf, sizeof(buf));
+		fprintf(stderr, "Unable to get sample size : %s\n", buf);
+		iio_context_destroy(ctx);
+		return;
+	}
+
     // Create buffer for reading samples
-    const size_t bufferSize = 1024*10;
-    buffer = iio_device_create_buffer(dev, bufferSize, false);
+    buffer = iio_device_create_buffer(dev, iio_buffer_size, false);
     if (!buffer) {
         std::cerr << "Failed to create buffer" << std::endl;
         // iio_device_destroy(dev);
@@ -87,7 +104,7 @@ void open_iio_buffer()
     iio_state = Iio_state::open;
 }
 
-std::vector<char *> subframes;
+std::vector<std::array<char, 604>> subframes;
 std::atomic_bool stop_read_thread(true);
 void read_iio_buffer()
 {
@@ -101,7 +118,39 @@ void read_iio_buffer()
             else
                 std::cerr << "Failed to refill buffer" << std::endl;
         }
-        subframes.push_back(nullptr);
+        else
+        {
+            if (ret != iio_buffer_size * iio_sample_size)
+                qDebug("Buffer not full!");
+            unsigned char *start = static_cast<unsigned char *>(iio_buffer_start(buffer));
+
+            if (subframes.size() == 0)
+            {
+                unsigned int index = 0;
+                for (unsigned int m = 0; m < 2; m++)
+                {
+                    qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
+                        start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
+                    index += 10;
+                    const int factor = 10; //2 ^ (start[index + 0]);
+                    std::complex<float> data[300];
+                    for (unsigned int i = 0; i < 300; i++)
+                    {
+                        qDebug("%d %d", static_cast<char>(start[index]), static_cast<char>(start[index + 1]));
+                        if (i > 100 && i < 200)
+                            data[i] = std::complex<float>(static_cast<char>(start[index]) * factor, static_cast<char>(start[index + 1]) * factor);
+                        else
+                            data[i] = std::complex<float>(0, 0);
+                        index += 2;
+                    }
+                    ComplexDataEvent *dataEvent = new ComplexDataEvent(&data[0], 300);
+                    if (m == 0)
+                        scatterWidget->customEvent(dataEvent);
+                }
+            }
+
+            subframes.push_back(std::array<char, 604>());
+        }
         // logEdit->append(QString("read ") + QString::number(ret) + QString(" bytes"));
         // std::cout << "." << std::endl;
     }
@@ -330,6 +379,9 @@ int main(int argc, char *argv[]) {
     QGroupBox pbchRawGroupBox("PBCH raw");
     layout.addWidget(&pbchRawGroupBox, 1, 1);
     QGridLayout pbchRawLayout(&pbchRawGroupBox);
+
+    scatterWidget = new ScatterWidget();
+    pbchRawLayout.addWidget(scatterWidget, 0, 0);
 
     QGroupBox pbchCorrectedGroupBox("PBCH corrected");
     layout.addWidget(&pbchCorrectedGroupBox, 2, 1);
