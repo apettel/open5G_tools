@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QTextEdit>
 #include <QTcpSocket>
+#include <QTime>
 #include <iio.h>
 #include <iostream>
 #include <atomic>
@@ -48,19 +49,20 @@ void connectToCell();
 
 void init_iio_device()
 {
-
-}
-
-unsigned int iio_sample_size = 0;
-const size_t iio_buffer_size = 1024*10;
-void open_iio_buffer()
-{
     // Initialize libiio context
     ctx = iio_create_context_from_uri("ip:192.168.137.2");
     if (!ctx) {
         std::cerr << "Failed to create libiio context" << std::endl;
         return;
     }
+}
+
+unsigned int iio_sample_size = 0;
+const size_t iio_buffer_size = 1024*10;
+void open_iio_buffer()
+{
+    unsigned int timeout_ms = 3000;
+    iio_context_set_timeout(ctx, timeout_ms);
 
     // Open the first available IIO device
     dev = iio_context_find_device(ctx, "open5G_phy");
@@ -92,14 +94,18 @@ void open_iio_buffer()
     buffer = iio_device_create_buffer(dev, iio_buffer_size, false);
     if (!buffer) {
         std::cerr << "Failed to create buffer" << std::endl;
-        // iio_device_destroy(dev);
         iio_context_destroy(ctx);
         return;
     }
 
     bool blocking = false;
     int ret = iio_buffer_set_blocking_mode(buffer, blocking);
-
+    if (ret != 0)
+    {
+        char buf[256];
+        iio_strerror(-(int)ret, buf, sizeof(buf));
+        std::cerr << "Failed to set blocking = false, code: " << ret << " error: " << buf << std::endl;
+    }
     qDebug("iio buffer created");
     iio_state = Iio_state::open;
 }
@@ -116,10 +122,15 @@ void read_iio_buffer()
             if (ret == -EAGAIN)
                 std::cout << "no data in buffer" << std::endl;
             else
-                std::cerr << "Failed to refill buffer" << std::endl;
+            {
+                char buf[256];
+                iio_strerror(-(int)ret, buf, sizeof(buf));
+                std::cerr << "Failed to refill buffer, error: " << buf << std::endl;
+            }
         }
         else
         {
+            qDebug("rx %d bytes", ret);
             if (ret != iio_buffer_size * iio_sample_size)
                 qDebug("Buffer not full!");
             unsigned char *start = static_cast<unsigned char *>(iio_buffer_start(buffer));
@@ -127,7 +138,7 @@ void read_iio_buffer()
             if (subframes.size() == 0)
             {
                 unsigned int index = 0;
-                for (unsigned int m = 0; m < 2; m++)
+                for (unsigned int m = 0; m < 5; m++)
                 {
                     qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
                         start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
@@ -136,15 +147,12 @@ void read_iio_buffer()
                     std::complex<float> data[300];
                     for (unsigned int i = 0; i < 300; i++)
                     {
-                        qDebug("%d %d", static_cast<char>(start[index]), static_cast<char>(start[index + 1]));
-                        if (i > 100 && i < 200)
-                            data[i] = std::complex<float>(static_cast<char>(start[index]) * factor, static_cast<char>(start[index + 1]) * factor);
-                        else
-                            data[i] = std::complex<float>(0, 0);
+                        //qDebug("%d %d", static_cast<char>(start[index]), static_cast<char>(start[index + 1]));
+                        data[i] = std::complex<float>(static_cast<char>(start[index]) * factor, static_cast<char>(start[index + 1]) * factor);
                         index += 2;
                     }
                     ComplexDataEvent *dataEvent = new ComplexDataEvent(&data[0], 300);
-                    if (m == 0)
+                    if (m == 2)
                         scatterWidget->customEvent(dataEvent);
                 }
             }
@@ -166,12 +174,21 @@ void close_iio_buffer()
     qDebug("iio_buffer_destroy");
     iio_buffer_destroy(buffer);
     // iio_device_destroy(dev);
-    qDebug("iio_context_destroy");
-    iio_context_destroy(ctx);
-    qDebug("iio_context_destroyed");
+    // qDebug("iio_context_destroy");
+    // iio_context_destroy(ctx);
+    // qDebug("iio_context_destroyed");
     buffer = nullptr;
     dev = nullptr;
-    ctx = nullptr;
+    // ctx = nullptr;
+}
+
+void delay( int millisecondsToWait )
+{
+    QTime dieTime = QTime::currentTime().addMSecs( millisecondsToWait );
+    while( QTime::currentTime() < dieTime )
+    {
+        QCoreApplication::processEvents( QEventLoop::AllEvents, 100 );
+    }
 }
 
 void update_status()
@@ -243,9 +260,7 @@ void update_status()
                 if (connect_state != Connect_state::connected)
                 {
                     connect_state = Connect_state::connected;
-                    open_iio_buffer();
-                    stop_read_thread = false;
-                    read_thread = new std::thread(read_iio_buffer);
+                    qDebug("connected");
                 }
             }
             else if (val != 2)
@@ -253,10 +268,20 @@ void update_status()
                 if (connect_state == Connect_state::connected)
                 {
                     connect_state = Connect_state::not_connected;
+                    qDebug("disconnected");
+                    // delay(2000);
                     stop_read_thread = true;
                     read_thread->join();
+                    free(read_thread);
+                    read_thread = nullptr;
                     subframes.clear();
                     close_iio_buffer();
+                    open_iio_buffer();
+                    if (iio_state == Iio_state::open)
+                    {
+                        stop_read_thread = false;
+                        read_thread = new std::thread(read_iio_buffer);
+                    }
                 }
             }
         }
@@ -267,8 +292,12 @@ void update_status()
     }
     busy = false;
     if (fsStatusEdit->text() != QString("2"))
+    {
+        qDebug("connecting ....");
+        subframes.clear();
         connectToCell();
-    logEdit->append(QString("receive buffers") + QString::number(subframes.size()));
+    }
+    logEdit->append(QString("received buffers ") + QString::number(subframes.size()));
 }
 
 void connect()
@@ -287,6 +316,12 @@ void connect()
         if (socket->waitForConnected(1000))
             qDebug("Connected!");
         init_iio_device();
+        open_iio_buffer();
+        if (iio_state == Iio_state::open)
+        {
+            stop_read_thread = false;
+            read_thread = new std::thread(read_iio_buffer);
+        }
         timer->start(200);
         connectButton->setText("disconnect");
     }
