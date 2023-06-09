@@ -113,6 +113,7 @@ void open_iio_buffer()
 
 std::vector<std::array<char, 604>> subframes;
 std::atomic_bool stop_read_thread(true);
+unsigned long old_timestamp = 0;
 void read_iio_buffer()
 {
     std::cout << "thread launched" << std::endl;
@@ -141,8 +142,6 @@ void read_iio_buffer()
                 unsigned int index = 0;
                 for (unsigned int m = 0; m < 3; m++)
                 {
-                    // qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
-                        // start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
                     unsigned int exponent = start[index];
                     unsigned int dummy = start[index + 1];
                     index += 2;
@@ -150,7 +149,17 @@ void read_iio_buffer()
                     for (unsigned int l = 0; l < 8; l++)
                         timestamp += static_cast<unsigned int>(start[index + l]) << (8 * l);
                     index += 8;
-                    qDebug("exponent %d, dummy %d, timestamp: %lu", exponent, dummy, timestamp);
+                    unsigned long delta_timestamp = timestamp - old_timestamp;
+                    qDebug("exponent %d, dummy %d, timestamp: %lu, delta_t: %lu", exponent, dummy, timestamp, delta_timestamp);
+                    old_timestamp = timestamp;
+                    if ((delta_timestamp != 548) && (delta_timestamp != 613300) && (delta_timestamp != 613304))
+                    {
+                        qDebug("timing error!");
+                        index -= 10;
+                        qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
+                            start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
+                        index += 10;
+                    }
                     const float factor = (2 ^ 16) / (2 ^ exponent);
                     std::complex<float> data[300];
                     for (unsigned int i = 0; i < 300; i++)
