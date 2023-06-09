@@ -32,7 +32,7 @@ struct iio_device *dev = nullptr;
 struct iio_buffer *buffer = nullptr;
 
 unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034, 0x7c44C01c};
-unsigned int num_read_items = 3;
+unsigned int num_read_items = 4;
 bool busy = false;
 enum Connect_state {
     not_connected,
@@ -141,10 +141,17 @@ void read_iio_buffer()
                 unsigned int index = 0;
                 for (unsigned int m = 0; m < 3; m++)
                 {
-                    qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
-                        start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
-                    index += 10;
-                    const int factor = 10; //2 ^ (start[index + 0]);
+                    // qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
+                        // start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
+                    unsigned int exponent = start[index];
+                    unsigned int dummy = start[index + 1];
+                    index += 2;
+                    unsigned long timestamp = 0;
+                    for (unsigned int l = 0; l < 8; l++)
+                        timestamp += static_cast<unsigned int>(start[index + l]) << (8 * l);
+                    index += 8;
+                    qDebug("exponent %d, dummy %d, timestamp: %lu", exponent, dummy, timestamp);
+                    const float factor = (2 ^ 16) / (2 ^ exponent);
                     std::complex<float> data[300];
                     for (unsigned int i = 0; i < 300; i++)
                     {
@@ -152,9 +159,12 @@ void read_iio_buffer()
                         data[i] = std::complex<float>(static_cast<char>(start[index]) * factor, static_cast<char>(start[index + 1]) * factor);
                         index += 2;
                     }
-                    ComplexDataEvent *dataEvent = new ComplexDataEvent(&data[0], 300);
                     if (m == 2)
-                        scatterWidget->customEvent(dataEvent);
+                    {
+                        // ComplexDataEvent *dataEvent = new ComplexDataEvent(&data[0], 300);
+                        ComplexDataEvent dataEvent(&data[30], 240);
+                        scatterWidget->customEvent(&dataEvent);
+                    }
                 }
             }
 
