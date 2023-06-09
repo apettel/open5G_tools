@@ -414,6 +414,13 @@ class MyWindow(QtWidgets.QWidget):
                     idx = int(item[1].text(), base = 16) - 1
                     break
             self.combo_box_ds.setCurrentIndex(idx)
+
+            # set connect_mode combobox
+            for item in mem_read_items2:
+                if item[0] == 0x7c44C018:
+                    idx = int(item[1].text(), base = 16)
+                    break
+            self.combo_box_rm.setCurrentIndex(idx)
             
         self.first_read = False
 
