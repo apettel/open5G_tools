@@ -22,6 +22,7 @@ QPushButton *connectButton;
 QPushButton *connectCellButton;
 QLineEdit *fsStatusEdit;
 QLineEdit *numDisconnectsEdit;
+QLineEdit *rgfOverflowEdit;
 QLineEdit *cellidEdit;
 QTcpSocket *socket;
 ScatterWidget *scatterWidget;
@@ -30,7 +31,7 @@ struct iio_context *ctx = nullptr;
 struct iio_device *dev = nullptr;
 struct iio_buffer *buffer = nullptr;
 
-unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034};
+unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034, 0x7c44C01c};
 unsigned int num_read_items = 3;
 bool busy = false;
 enum Connect_state {
@@ -58,7 +59,7 @@ void init_iio_device()
 }
 
 unsigned int iio_sample_size = 0;
-const size_t iio_buffer_size = 1024*10;
+const size_t iio_buffer_size = 610 * 14; // reads 4 subframes
 void open_iio_buffer()
 {
     unsigned int timeout_ms = 30000;
@@ -135,10 +136,10 @@ void read_iio_buffer()
                 qDebug("Buffer not full!");
             unsigned char *start = static_cast<unsigned char *>(iio_buffer_start(buffer));
 
-            if (subframes.size() == 0)
+            if (subframes.size() % 20 == 0)
             {
                 unsigned int index = 0;
-                for (unsigned int m = 0; m < 5; m++)
+                for (unsigned int m = 0; m < 3; m++)
                 {
                     qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
                         start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
@@ -282,6 +283,8 @@ void update_status()
             numDisconnectsEdit->setText(QString::number(val));
             num_disconnects = val;
         }
+        else if (i == 3)
+            rgfOverflowEdit->setText(QString::number(val));
     }
     busy = false;
     if ((fsStatusEdit->text() != QString("2")) && (num_disconnects > num_disconnects_old))
@@ -419,6 +422,11 @@ int main(int argc, char *argv[]) {
     statusLayout.addWidget(label, 2, 0);
     cellidEdit = new QLineEdit("");
     statusLayout.addWidget(cellidEdit, 2, 1);
+    // N_id
+    label = new QLabel("rgf_overflow");
+    statusLayout.addWidget(label, 3, 0);
+    rgfOverflowEdit = new QLineEdit("");
+    statusLayout.addWidget(rgfOverflowEdit, 3, 1);
 
     QGroupBox pbchRawGroupBox("PBCH raw");
     layout.addWidget(&pbchRawGroupBox, 1, 1);

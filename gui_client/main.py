@@ -122,6 +122,7 @@ class MyWindow(QtWidgets.QWidget):
         self.add_read_location("id string", 0x7c44C00c, group_box_layout)
         self.add_read_location("state",  0x7c44C014, group_box_layout)
         self.add_read_location("reconnect_mode",  0x7c44C018, group_box_layout)
+        self.add_read_location("rgf_overflow",  0x7c44C01c, group_box_layout)
         self.add_read_location("sample_cnt_mismatch",      0x7c44C024, group_box_layout, True)
         self.add_read_location("missed_SSBs",      0x7c44C028, group_box_layout)
         self.add_read_location("ibar_SSB",      0x7c44C02c, group_box_layout)
