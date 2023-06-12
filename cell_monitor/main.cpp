@@ -140,9 +140,11 @@ void read_iio_buffer()
             if (subframes.size() % 20 == 0)
             {
                 unsigned int index = 0;
-                for (unsigned int m = 0; m < 3; m++)
+                for (unsigned int m = 0; m < 4; m++)
                 {
                     unsigned int exponent = start[index];
+                    if (exponent > 16)
+                        exponent = 10;
                     unsigned int dummy = start[index + 1];
                     index += 2;
                     unsigned long timestamp = 0;
@@ -154,11 +156,11 @@ void read_iio_buffer()
                     old_timestamp = timestamp;
                     if ((delta_timestamp != 548) && (delta_timestamp != 613300) && (delta_timestamp != 613304))
                     {
-                        qDebug("timing error!");
-                        index -= 10;
-                        qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
-                            start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
-                        index += 10;
+                        // qDebug("timing error!");
+                        // index -= 10;
+                        // qDebug("%.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x %.02x", 
+                        //     start[index + 0], start[index + 1], start[index + 2], start[index + 3], start[index + 4], start[index + 5], start[index + 6], start[index + 7], start[index + 8], start[index + 9]);
+                        // index += 10;
                     }
                     const float factor = (2 ^ 16) / (2 ^ exponent);
                     std::complex<float> data[300];
@@ -168,9 +170,8 @@ void read_iio_buffer()
                         data[i] = std::complex<float>(static_cast<char>(start[index]) * factor, static_cast<char>(start[index + 1]) * factor);
                         index += 2;
                     }
-                    if (m == 2)
+                    if (m == 0)
                     {
-                        // ComplexDataEvent *dataEvent = new ComplexDataEvent(&data[0], 300);
                         ComplexDataEvent dataEvent(&data[30], 240);
                         scatterWidget->customEvent(&dataEvent);
                     }
@@ -183,7 +184,7 @@ void read_iio_buffer()
         // std::cout << "." << std::endl;
     }
 }
-std::thread *read_thread;
+std::unique_ptr<std::thread> read_thread;
 
 void close_iio_buffer()
 {
@@ -314,8 +315,6 @@ void update_status()
             stop_read_thread = true;
             iio_buffer_cancel(buffer);
             read_thread->join();
-            free(read_thread);
-            read_thread = nullptr;
             close_iio_buffer();
             subframes.clear();
         }
@@ -324,7 +323,7 @@ void update_status()
 
         open_iio_buffer();
         stop_read_thread = false;
-        read_thread = new std::thread(read_iio_buffer);
+        read_thread = std::make_unique<std::thread>(read_iio_buffer);
         num_disconnects_old = num_disconnects;
         connectToCell();
     }
@@ -351,7 +350,7 @@ void connect()
         if (iio_state == Iio_state::open)
         {
             stop_read_thread = false;
-            read_thread = new std::thread(read_iio_buffer);
+            read_thread = std::make_unique<std::thread>(read_iio_buffer);
         }
         timer->start(200);
         connectButton->setText("disconnect");
@@ -453,6 +452,10 @@ int main(int argc, char *argv[]) {
 
     scatterWidget = new ScatterWidget();
     pbchRawLayout.addWidget(scatterWidget, 0, 0);
+    scatterWidget->setWidgetXAxisAutoScale(false);
+    scatterWidget->setWidgetYAxisAutoScale(false);
+    scatterWidget->setWidgetXAxisScale(-300, 300);
+    scatterWidget->setWidgetYAxisScale(-300, 300);
 
     QGroupBox pbchCorrectedGroupBox("PBCH corrected");
     layout.addWidget(&pbchCorrectedGroupBox, 2, 1);
