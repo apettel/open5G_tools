@@ -13,6 +13,7 @@
 #include <iostream>
 #include <atomic>
 #include <thread>
+#include <functional>
 #include "srsgui/srsgui++.h"
 #include "srsgui/common/Events.h"
 
@@ -31,8 +32,23 @@ struct iio_context *ctx = nullptr;
 struct iio_device *dev = nullptr;
 struct iio_buffer *buffer = nullptr;
 
-unsigned int read_addr [] = {0x7c44C014, 0x7c448020, 0x7c44C034, 0x7c44C01c};
-unsigned int num_read_items = 4;
+struct ReadItem
+{
+    unsigned int addr;
+    std::function<void(int)> handler;
+};
+
+const unsigned int ADDR_FS_STATE = 0x7C44C014;
+const unsigned int ADDR_N_ID = 0x7C448020;
+const unsigned int ADDR_NUM_DISCONNECTS = 0x7C44C034;
+const unsigned int ADDR_RGF_OVERFLOW = 0x7c44C01C;
+
+std::array<ReadItem, 4> read_items = {
+    ReadItem{.addr = ADDR_FS_STATE, .handler = [](auto val) { fsStatusEdit->setText(QString::number(val)); }},
+    ReadItem{.addr = ADDR_N_ID, .handler = [](auto val) { cellidEdit->setText(QString::number(val)); }},
+    ReadItem{.addr = ADDR_NUM_DISCONNECTS, .handler = [](auto val) { numDisconnectsEdit->setText(QString::number(val)); }},
+    ReadItem{.addr = ADDR_RGF_OVERFLOW, .handler = [](auto val) { rgfOverflowEdit->setText(QString::number(val)); }}};
+
 bool busy = false;
 enum Connect_state {
     not_connected,
@@ -234,18 +250,18 @@ void update_status()
     }
     
     QByteArray data;
-    unsigned int num_read_bytes = num_read_items * 4 + 1;
+    const auto num_read_bytes = read_items.size() * 4 + 1;
     data.append(QByteArray::fromHex("00000000"));
     data[0] = num_read_bytes & 0xFF;
     data[1] = (num_read_bytes >> 8) & 0xFF;
     data.append(QByteArray::fromHex("00"));
-    for (int i = 0; i < num_read_items; i ++)
+    for (auto read_item : read_items)
     {
         QByteArray data2 = QByteArray::fromHex("00000000");
-        data2[0] = read_addr[i] & 0xFF;
-        data2[1] = (read_addr[i] >> 8) & 0xFF;
-        data2[2] = (read_addr[i] >> 16) & 0xFF;
-        data2[3] = (read_addr[i] >> 24) & 0xFF;
+        data2[0] = read_item.addr & 0xFF;
+        data2[1] = (read_item.addr >> 8) & 0xFF;
+        data2[2] = (read_item.addr >> 16) & 0xFF;
+        data2[3] = (read_item.addr >> 24) & 0xFF;
         data.append(data2);
     }
     // logEdit->append(QString("sending ") + data.toHex());
@@ -253,7 +269,7 @@ void update_status()
     socket->waitForBytesWritten();
     QByteArray rx_data;
     unsigned int try_cnt = 0;
-    while ((rx_data.size() < (num_read_items * 4 + 5)) && try_cnt < 100)
+    while ((rx_data.size() < (read_items.size() * 4 + 5)) && try_cnt < 100)
     {
         if (socket->bytesAvailable() > 0)
         {
@@ -263,22 +279,24 @@ void update_status()
         try_cnt++;
     }
     
-    if (rx_data.size() != num_read_items * 4 + 5)
+    if (rx_data.size() != read_items.size() * 4 + 5)
     {
         qDebug("Did not receive all data!");
         busy = false;
         return;
     }
     
-    for (int i = 0; i < num_read_items; i++)
+    auto rx_data_ptr = rx_data.begin();
+    std::advance(rx_data_ptr, 5);
+    for (auto read_item : read_items)
     {
-        unsigned int val = static_cast<unsigned char>(rx_data[5 + 4*i]);
-        val += static_cast<unsigned char>(rx_data[6 + 4*i]) << 8;
-        val += static_cast<unsigned char>(rx_data[7 + 4*i]) << 16;
-        val += static_cast<unsigned char>(rx_data[8 + 4*i]) << 24;
-        if (i == 0)
+        unsigned int val = static_cast<unsigned char>(*(rx_data_ptr++));
+        val += static_cast<unsigned char>(*(rx_data_ptr++)) << 8;
+        val += static_cast<unsigned char>(*(rx_data_ptr++)) << 16;
+        val += static_cast<unsigned char>(*(rx_data_ptr++)) << 24;
+        read_item.handler(val);
+        if (read_item.addr == ADDR_FS_STATE)
         {
-            fsStatusEdit->setText(QString::number(val));
             if (val == 2)
             {
                 if (connect_state != Connect_state::connected)
@@ -296,15 +314,8 @@ void update_status()
                 }
             }
         }
-        else if (i == 1)
-            cellidEdit->setText(QString::number(val));
-        else if (i == 2)
-        {
-            numDisconnectsEdit->setText(QString::number(val));
+        else if (read_item.addr == ADDR_NUM_DISCONNECTS)
             num_disconnects = val;
-        }
-        else if (i == 3)
-            rgfOverflowEdit->setText(QString::number(val));
     }
     busy = false;
     if ((fsStatusEdit->text() != QString("2")) && (num_disconnects > num_disconnects_old))
