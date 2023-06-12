@@ -16,16 +16,16 @@
 #include "srsgui/srsgui++.h"
 #include "srsgui/common/Events.h"
 
-QTextEdit *logEdit;
-QTimer *timer;
-QPushButton *connectButton;
-QPushButton *connectCellButton;
-QLineEdit *fsStatusEdit;
-QLineEdit *numDisconnectsEdit;
-QLineEdit *rgfOverflowEdit;
-QLineEdit *cellidEdit;
-QTcpSocket *socket;
-ScatterWidget *scatterWidget;
+std::unique_ptr<QTextEdit> logEdit;
+std::unique_ptr<QTimer> timer;
+std::unique_ptr<QPushButton> connectButton;
+std::unique_ptr<QPushButton> connectCellButton;
+std::unique_ptr<QLineEdit> fsStatusEdit;
+std::unique_ptr<QLineEdit> numDisconnectsEdit;
+std::unique_ptr<QLineEdit> rgfOverflowEdit;
+std::unique_ptr<QLineEdit> cellidEdit;
+std::unique_ptr<QTcpSocket> socket;
+std::unique_ptr<ScatterWidget> scatterWidget;
 
 struct iio_context *ctx = nullptr;
 struct iio_device *dev = nullptr;
@@ -376,7 +376,7 @@ void connectToCell()
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
 
-    socket = new QTcpSocket();
+    socket = std::make_unique<QTcpSocket>();
 
     // Create main window and layout
     QWidget mainWindow;
@@ -404,23 +404,23 @@ int main(int argc, char *argv[]) {
     textField = new QLineEdit("200");
     settingsLayout.addWidget(textField, 2, 1);
 
-    connectButton = new QPushButton("connect");
-    settingsLayout.addWidget(connectButton, 3, 0);
-    QObject::connect(connectButton, &QPushButton::clicked, [&]() {
+    connectButton = std::make_unique<QPushButton>("connect");
+    settingsLayout.addWidget(connectButton.get(), 3, 0);
+    QObject::connect(connectButton.get(), &QPushButton::clicked, [&]() {
         connect();
     });
 
-    connectCellButton = new QPushButton("connect to cell");
-    settingsLayout.addWidget(connectCellButton, 3, 1);
-    QObject::connect(connectCellButton, &QPushButton::clicked, [&]() {
+    connectCellButton = std::make_unique<QPushButton>("connect to cell");
+    settingsLayout.addWidget(connectCellButton.get(), 3, 1);
+    QObject::connect(connectCellButton.get(), &QPushButton::clicked, [&]() {
         connectToCell();
     });
 
     QGroupBox logGroupBox("Log");
     layout.addWidget(&logGroupBox, 1, 0);
     QGridLayout logLayout(&logGroupBox);
-    logEdit = new QTextEdit();
-    logLayout.addWidget(logEdit);
+    logEdit = std::make_unique<QTextEdit>();
+    logLayout.addWidget(logEdit.get());
 
     QGroupBox statusGroupBox("lower phy status");
     layout.addWidget(&statusGroupBox, 0, 1);
@@ -428,30 +428,30 @@ int main(int argc, char *argv[]) {
     // fs_status
     label = new QLabel("fs_status");
     statusLayout.addWidget(label, 0, 0);
-    fsStatusEdit = new QLineEdit("");
-    statusLayout.addWidget(fsStatusEdit, 0, 1);
+    fsStatusEdit = std::make_unique<QLineEdit>("");
+    statusLayout.addWidget(fsStatusEdit.get(), 0, 1);
     // num_disconnects
     label = new QLabel("num_disconnects");
     statusLayout.addWidget(label, 1, 0);
-    numDisconnectsEdit = new QLineEdit("");
-    statusLayout.addWidget(numDisconnectsEdit, 1, 1);
+    numDisconnectsEdit = std::make_unique<QLineEdit>("");
+    statusLayout.addWidget(numDisconnectsEdit.get(), 1, 1);
     // N_id
     label = new QLabel("N_id");
     statusLayout.addWidget(label, 2, 0);
-    cellidEdit = new QLineEdit("");
-    statusLayout.addWidget(cellidEdit, 2, 1);
+    cellidEdit = std::make_unique<QLineEdit>("");
+    statusLayout.addWidget(cellidEdit.get(), 2, 1);
     // N_id
     label = new QLabel("rgf_overflow");
     statusLayout.addWidget(label, 3, 0);
-    rgfOverflowEdit = new QLineEdit("");
-    statusLayout.addWidget(rgfOverflowEdit, 3, 1);
+    rgfOverflowEdit = std::make_unique<QLineEdit>("");
+    statusLayout.addWidget(rgfOverflowEdit.get(), 3, 1);
 
     QGroupBox pbchRawGroupBox("PBCH raw");
     layout.addWidget(&pbchRawGroupBox, 1, 1);
     QGridLayout pbchRawLayout(&pbchRawGroupBox);
 
-    scatterWidget = new ScatterWidget();
-    pbchRawLayout.addWidget(scatterWidget, 0, 0);
+    scatterWidget = std::make_unique<ScatterWidget>();
+    pbchRawLayout.addWidget(scatterWidget.get(), 0, 0);
     scatterWidget->setWidgetXAxisAutoScale(false);
     scatterWidget->setWidgetYAxisAutoScale(false);
     scatterWidget->setWidgetXAxisScale(-300, 300);
@@ -461,8 +461,8 @@ int main(int argc, char *argv[]) {
     layout.addWidget(&pbchCorrectedGroupBox, 2, 1);
     QGridLayout pbchCorrectedLayout(&pbchCorrectedGroupBox);
 
-    timer = new QTimer();
-    QObject::connect(timer, &QTimer::timeout, [&]() {
+    timer = std::make_unique<QTimer>();
+    QObject::connect(timer.get(), &QTimer::timeout, [&]() {
         update_status();
     });
 
