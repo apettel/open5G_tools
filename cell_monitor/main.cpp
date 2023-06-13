@@ -9,6 +9,7 @@
 #include <QTextEdit>
 #include <QTcpSocket>
 #include <QTime>
+#include <array>
 #include <iostream>
 #include <atomic>
 #include <thread>
