@@ -7,6 +7,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
+message(STATUS "MODULES PATH " ${CMAKE_MODULE_PATH})
 find_package(Qt5 COMPONENTS Core Widgets Network REQUIRED)
 
 find_package(SRSGUI)
