@@ -9,7 +9,6 @@
 #include <QTextEdit>
 #include <QTcpSocket>
 #include <QTime>
-#include <iio.h>
 #include <iostream>
 #include <atomic>
 #include <thread>
