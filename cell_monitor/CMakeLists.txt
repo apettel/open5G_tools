@@ -21,6 +21,7 @@ pkg_check_modules(LIBIIO REQUIRED libiio)
 
 set(SOURCES
     main.cpp
+    iio_buf_reader.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
